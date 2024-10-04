@@ -9,7 +9,7 @@ GO := $(shell which go)
 
 .PHONY: build
 build:
-	$(GO) build -ldflags "-X github.com/optable/optable-pair-cli/pkg/cli.version=${BUILD_VERSION}" -o bin/pair pkg/cmd/main.go
+	$(GO) build -ldflags="-X 'optable-pair-cli/pkg/cmd/cli.version=${BUILD_VERSION}'" -o bin/pair pkg/cmd/main.go
 
 .PHONY: release
 release: darwin linux windows

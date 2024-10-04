@@ -10,6 +10,7 @@ import (
 type CliContext struct {
 	ctx     context.Context
 	Timeout time.Duration
+	config  *Config
 }
 
 type Cli struct {
@@ -20,10 +21,11 @@ type Cli struct {
 	Token   string     `placeholder:"<token>" help:"Optable Auth Token"`
 }
 
-func (c *Cli) NewContext() (*CliContext, error) {
+func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
 	cliCtx := &CliContext{
 		ctx:     NewLogger("pair", c.Verbose).WithContext(context.Background()),
 		Timeout: c.Timeout,
+		config:  conf,
 	}
 
 	return cliCtx, nil
