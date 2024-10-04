@@ -8,7 +8,7 @@ import (
 
 type (
 	GenerateKeyCmd struct {
-		Force bool `cmd:"" help:"If set, will overwrite the existing key."`
+		Force bool `cmd:"" short:"f" help:"If set, will overwrite the existing key."`
 	}
 )
 
