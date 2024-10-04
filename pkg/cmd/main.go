@@ -3,6 +3,7 @@ package main
 import (
 	"optable-pair-cli/pkg/cmd/cli"
 
+	"github.com/adrg/xdg"
 	"github.com/alecthomas/kong"
 )
 
@@ -17,6 +18,8 @@ the publisher data clean room operator.
 For more details on how a PAIR clean room operation works, see https://github.com/Optable/match/blob/main/pkg/pair/README.md
 and https://iabtechlab.com/pair/.
 `
+
+const keyConfigPath = "pair/key/key.json"
 
 func main() {
 	var c cli.Cli
@@ -33,7 +36,17 @@ func main() {
 		},
 	)
 
-	cliCtx, err := c.NewContext()
+	configPath, err := xdg.ConfigFile(keyConfigPath)
+	if err != nil {
+		kongCtx.FatalIfErrorf(err)
+	}
+
+	conf, err := cli.LoadKeyConfig(configPath)
+	if err != nil {
+		kongCtx.FatalIfErrorf(err)
+	}
+
+	cliCtx, err := c.NewContext(conf)
 	kongCtx.FatalIfErrorf(err)
 
 	kongCtx.FatalIfErrorf(kongCtx.Run(cliCtx))
