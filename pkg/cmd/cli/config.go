@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"optable-pair-cli/pkg/keys"
 	"os"
 	"path/filepath"
 )
@@ -13,20 +14,7 @@ type Config struct {
 	// Path to the configuration file.
 	configPath string
 	// Key configuration.
-	keyConfig *KeyConfig
-}
-
-type KeyConfig struct {
-	// Unique identifier for the key.
-	ID string `json:"id"`
-	// base64 encoded key data
-	Key string `json:"key"`
-	// Key is created using which PAIR mode
-	Mode string `json:"mode"`
-	// timestamp of when the key was created
-	// RFC3339 format
-	// e.g. 2021-09-01T12:00:00Z
-	CreatedAt string `json:"created_at"`
+	keyConfig *keys.KeyConfig
 }
 
 func ensureKeyConfigPath(configPath string) error {
@@ -52,10 +40,10 @@ func LoadKeyConfig(configPath string) (*Config, error) {
 	}
 	defer file.Close()
 
-	var config KeyConfig
+	var config keys.KeyConfig
 	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil, nil
+			return &Config{configPath: configPath}, nil
 		} else {
 			return nil, fmt.Errorf("json.Decode: %w", err)
 		}
@@ -67,7 +55,7 @@ func LoadKeyConfig(configPath string) (*Config, error) {
 	}, nil
 }
 
-func (c *CliContext) SaveCconfig() error {
+func (c *CliContext) SaveConfig() error {
 	file, err := os.OpenFile(c.config.configPath, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
