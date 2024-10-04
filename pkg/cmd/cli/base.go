@@ -17,8 +17,10 @@ type Cli struct {
 	Verbose int           `short:"v" type:"counter" help:"Enable debug mode."`
 	Timeout time.Duration `default:"5s" help:"Timeout for some operation formatted like go time.Duration"`
 
-	Version VersionCmd `cmd:"" help:"Print version"`
 	Token   string     `placeholder:"<token>" help:"Optable Auth Token"`
+	Version VersionCmd `cmd:"" help:"Print version"`
+
+	GenerateKey GenerateKeyCmd `cmd:"" help:"Generate a new advertiser private key."`
 }
 
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
