@@ -21,6 +21,8 @@ type Cli struct {
 	Version VersionCmd `cmd:"" help:"Print version"`
 
 	GenerateKey GenerateKeyCmd `cmd:"" help:"Generate a new advertiser private key."`
+
+	Participate ParticipateCmd `cmd:"" hidden:"" help:"Participate in the PAIR operation by contributing advertiser hashed and encrypted data."`
 }
 
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
