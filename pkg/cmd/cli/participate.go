@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 	"os"
 	"path/filepath"
@@ -31,6 +32,19 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		if c.AdvertiserKey == "" {
 			return errors.New("advertiser key is required, please either provide one or generate one.")
 		}
+	}
+
+	// TODO(Justin): read salt from token.
+	salt := make([]byte, 32)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	saltStr := base64.StdEncoding.EncodeToString(salt)
+
+	// validate the private key
+	if _, err := keys.NewPAIRPrivateKey(saltStr, c.AdvertiserKey); err != nil {
+		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
 	var (
@@ -86,15 +100,6 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
 	}
-
-	// TODO(Justin): read salt from token.
-	salt := make([]byte, 32)
-	_, err = rand.Read(salt)
-	if err != nil {
-		return fmt.Errorf("failed to generate salt: %w", err)
-	}
-
-	saltStr := base64.StdEncoding.EncodeToString(salt)
 
 	if err := pair.HashEncrypt(cli.Context(), in, out, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
 		return fmt.Errorf("HashEncrypt: %w", err)
