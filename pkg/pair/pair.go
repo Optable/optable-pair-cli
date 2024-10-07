@@ -97,7 +97,7 @@ func NewPAIRIDReadWriter(r io.Reader, w io.Writer, batchSize int) (*pairIDReadWr
 // hash and encrypts the records and writes to the underlying writer.
 func (p *pairIDReadWriter) Read(pk *pair.PrivateKey) error {
 	ids, ok := <-p.batch
-	if !ok || len(ids) == 0 {
+	if !ok {
 		return p.err
 	}
 
