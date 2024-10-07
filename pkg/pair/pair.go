@@ -37,6 +37,17 @@ const (
 	PAIROperationReEncrypt
 )
 
+func (p PAIROperation) String() string {
+	switch p {
+	case PAIROperationHashEncrypt:
+		return "HashEncrypt"
+	case PAIROperationReEncrypt:
+		return "ReEncrypt"
+	default:
+		return "Unknown"
+	}
+}
+
 func NewPAIRIDReadWriter(r io.Reader, w io.Writer) (*pairIDReadWriter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -136,7 +147,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			}
 			close(done)
 
-			logger.Debug().Msgf("HashEncrypt: read %d IDs, written %d PAIR IDs in %s", p.read, p.written, time.Since(startTime))
+			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.read, p.written, time.Since(startTime))
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
