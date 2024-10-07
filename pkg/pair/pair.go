@@ -136,6 +136,7 @@ func HashEncrypt(ctx context.Context, r io.Reader, w io.Writer, numWorkers int, 
 		logger    = zerolog.Ctx(ctx)
 		startTime = time.Now()
 		done      = make(chan struct{}, 1)
+		once      sync.Once
 	)
 
 	// Limit the number of workers to 8
@@ -167,7 +168,9 @@ func HashEncrypt(ctx context.Context, r io.Reader, w io.Writer, numWorkers int, 
 
 				if err := p.Read(pk); err != nil {
 					if errors.Is(err, io.EOF) {
-						done <- struct{}{}
+						once.Do(func() {
+							done <- struct{}{}
+						})
 						return nil
 					}
 
