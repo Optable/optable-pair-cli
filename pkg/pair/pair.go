@@ -6,15 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"optable-pair-cli/pkg/keys"
+	"sync"
+	"time"
 
 	"github.com/optable/match/pkg/pair"
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 )
+
+const batchSize = 1024
 
 type (
 	pairIDReadWriter struct {
-		pk        *pair.PrivateKey
 		r         *csv.Reader
 		w         *csv.Writer
+		writeLock *sync.Mutex
+		read      int
+		written   int
 		batchSize int
 		batch     chan [][]byte
 		err       error
@@ -22,13 +31,13 @@ type (
 	}
 )
 
-func NewPairIDReadWriter(r io.Reader, w io.Writer, batchSize int, pk *pair.PrivateKey) (*pairIDReadWriter, error) {
+func NewPAIRIDReadWriter(r io.Reader, w io.Writer, batchSize int) (*pairIDReadWriter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &pairIDReadWriter{
-		pk:        pk,
 		r:         csv.NewReader(r),
 		w:         csv.NewWriter(w),
+		writeLock: &sync.Mutex{},
 		batchSize: batchSize,
 		batch:     make(chan [][]byte, batchSize),
 		cancel:    cancel,
@@ -52,6 +61,7 @@ func NewPairIDReadWriter(r io.Reader, w io.Writer, batchSize int, pk *pair.Priva
 				// Write the last batch
 				if len(ids) > 0 {
 					p.batch <- ids
+					p.read += len(ids)
 				}
 
 				return
@@ -74,6 +84,7 @@ func NewPairIDReadWriter(r io.Reader, w io.Writer, batchSize int, pk *pair.Priva
 					// reset the batch
 					ids = make([][]byte, 0, batchSize)
 					batch = 0
+					p.read += batchSize
 				}
 			}
 		}
@@ -84,27 +95,87 @@ func NewPairIDReadWriter(r io.Reader, w io.Writer, batchSize int, pk *pair.Priva
 
 // Read reads a batch of records from the input reader,
 // hash and encrypts the records and writes to the underlying writer.
-func (p *pairIDReadWriter) Read() error {
+func (p *pairIDReadWriter) Read(pk *pair.PrivateKey) error {
 	ids, ok := <-p.batch
-	if !ok {
+	if !ok || len(ids) == 0 {
 		return p.err
 	}
 
+	records := make([][]string, 0, len(ids))
 	for _, id := range ids {
-		pairID, err := p.pk.Encrypt([]byte(id))
+		pairID, err := pk.Encrypt([]byte(id))
 		if err != nil {
 			return fmt.Errorf("Encrypt: %w", err)
 		}
 
-		if err := p.w.Write(pairID); err != nil {
-			return fmt.Errorf("Write: %w", err)
-		}
+		records = append(records, []string{string(pairID)})
 	}
 
-	p.w.Flush()
+	// write is not thread safe
+	p.writeLock.Lock()
+	defer p.writeLock.Unlock()
+	if err := p.w.WriteAll(records); err != nil {
+		return fmt.Errorf("w.WriteAll: %w", err)
+	}
+	p.written += len(records)
+
 	if err := p.w.Error(); err != nil {
 		return fmt.Errorf("p.w.Error: %w", err)
 	}
 
 	return nil
+}
+
+func HashEncrypt(ctx context.Context, r io.Reader, w io.Writer, numWorkers int, salt, privatKey string) error {
+	p, err := NewPAIRIDReadWriter(r, w, batchSize)
+	if err != nil {
+		return fmt.Errorf("NewPairIDReadWriter: %w", err)
+	}
+
+	var (
+		logger    = zerolog.Ctx(ctx)
+		startTime = time.Now()
+		done      = make(chan struct{}, 1)
+	)
+
+	// Limit the number of workers to 8
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(numWorkers)
+
+	for {
+		select {
+		case <-done:
+			if err := g.Wait(); err != nil {
+				return fmt.Errorf("g.Wait: %w", err)
+			}
+			close(done)
+
+			logger.Debug().Msgf("HashEncrypt: read %d IDs, written %d PAIR IDs in %s", p.read, p.written, time.Since(startTime))
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			g.Go(func() error {
+				pk, err := keys.NewPAIRPrivateKey(salt, privatKey)
+				if err != nil {
+					return fmt.Errorf("NewPAIRPrivateKey: %w", err)
+				}
+
+				if err := p.Read(pk); err != nil {
+					if errors.Is(err, io.EOF) {
+						done <- struct{}{}
+						return nil
+					}
+
+					return fmt.Errorf("p.Read: %w", err)
+				}
+
+				return nil
+			})
+		}
+	}
 }
