@@ -57,8 +57,13 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("io.FileWriter: %w", err)
 	}
 
-	if err := pair.HashEncrypt(cli.Context(), in, out, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("HashEncrypt: %w", err)
+	rw, err := pair.NewPAIRIDReadWriter(in, out)
+	if err != nil {
+		return fmt.Errorf("NewPAIRIDReadWriter: %w", err)
+	}
+
+	if err := rw.HashEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
+		return fmt.Errorf("rw.HashEncrypt: %w", err)
 	}
 
 	return nil

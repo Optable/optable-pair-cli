@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -16,7 +15,7 @@ import (
 )
 
 type (
-	EncryptCmd struct {
+	ReEncryptCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
 		GCSToken           string `arg:"" help:"The GCS token to use for the operation."`
 		Input              string `cmd:"" short:"i" help:"The GCS bucket URL containing objects of publisher's encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
@@ -26,7 +25,7 @@ type (
 	}
 )
 
-func (c *EncryptCmd) Run(cli *CliContext) error {
+func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	if c.PairCleanroomToken == "" {
 		return errors.New("pair clean room token is required")
 	}
@@ -51,10 +50,7 @@ func (c *EncryptCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
-	if c.GCSToken == "" {
-		return errors.New("GCS token is required")
-	}
-
+	// Allow testing with local files.
 	if !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
 		in, err := io.FileReaders(c.Input)
 		if err != nil {
@@ -66,7 +62,17 @@ func (c *EncryptCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("fileWriters: %w", err)
 		}
 
-		return pair.HashEncrypt(context.Background(), in, out, c.NumThreads, saltStr, c.AdvertiserKey)
+		rw, err := pair.NewPAIRIDReadWriter(in, out)
+		if err != nil {
+			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+		}
+
+		return rw.ReEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey)
+	}
+
+	// TODO (Justin): use token to read and write to GCS.
+	if c.GCSToken == "" {
+		return errors.New("GCS token is required")
 	}
 
 	return nil

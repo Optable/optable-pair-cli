@@ -23,6 +23,7 @@ type Cli struct {
 	GenerateKey GenerateKeyCmd `cmd:"" help:"Generate a new advertiser private key."`
 
 	Participate ParticipateCmd `cmd:"" hidden:"" help:"Participate in the PAIR operation by contributing advertiser hashed and encrypted data."`
+	ReEncrypt   ReEncryptCmd   `cmd:"" hidden:"" help:"Re-encrypt publisher's PAIR IDs with the advertiser key."`
 }
 
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
