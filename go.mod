@@ -9,6 +9,7 @@ require (
 	github.com/gtank/ristretto255 v0.1.2
 	github.com/optable/match v1.3.0
 	github.com/rs/zerolog v1.33.0
+	golang.org/x/sync v0.8.0
 )
 
 require (

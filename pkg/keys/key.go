@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/optable/match/pkg/pair"
+
+	_ "crypto/sha256"
 )
 
 const mode = pair.PAIRSHA256Ristretto255
