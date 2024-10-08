@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"optable-pair-cli/pkg/bucket"
 	"optable-pair-cli/pkg/cmd/cli/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
@@ -26,6 +27,8 @@ type (
 )
 
 func (c *ReEncryptCmd) Run(cli *CliContext) error {
+	ctx := cli.Context()
+
 	if c.PairCleanroomToken == "" {
 		return errors.New("pair clean room token is required")
 	}
@@ -67,7 +70,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
 		}
 
-		return rw.ReEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey)
+		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
 	// TODO (Justin): use token to read and write to GCS.
@@ -75,7 +78,24 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return errors.New("GCS token is required")
 	}
 
-	return nil
+	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Input, c.Output)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucket: %w", err)
+	}
+	defer b.Close()
+
+	for _, rw := range b.ReadWriters {
+		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
+		if err != nil {
+			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+		}
+
+		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
+			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
+		}
+	}
+
+	return b.Complete(ctx)
 }
 
 func isGCSBucketURL(path string) bool {
