@@ -46,24 +46,25 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
-	in, err := io.FileReaders(c.Input)
-	if err != nil {
-		return fmt.Errorf("io.FileReaders: %w", err)
-	}
+	// Allow testing with local files.
+	if !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
+		in, err := io.FileReaders(c.Input)
+		if err != nil {
+			return fmt.Errorf("io.FileReaders: %w", err)
+		}
 
-	// TODO(Justin): write to GCS bucket url from Cleanroom passed by token.
-	out, err := io.FileWriter(c.Output)
-	if err != nil {
-		return fmt.Errorf("io.FileWriter: %w", err)
-	}
+		// TODO(Justin): write to GCS bucket url from Cleanroom passed by token.
+		out, err := io.FileWriter(c.Output)
+		if err != nil {
+			return fmt.Errorf("io.FileWriter: %w", err)
+		}
 
-	rw, err := pair.NewPAIRIDReadWriter(in, out)
-	if err != nil {
-		return fmt.Errorf("NewPAIRIDReadWriter: %w", err)
-	}
+		rw, err := pair.NewPAIRIDReadWriter(in, out)
+		if err != nil {
+			return fmt.Errorf("NewPAIRIDReadWriter: %w", err)
+		}
 
-	if err := rw.HashEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("rw.HashEncrypt: %w", err)
+		return rw.HashEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
 	return nil
