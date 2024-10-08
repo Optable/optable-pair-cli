@@ -20,6 +20,7 @@ const CompletedFile = ".Completed"
 type (
 	Bucket struct {
 		client            *storage.Client
+		FileReader        io.Reader
 		srcPrefixedBucket *prefixedBucket
 		dstPrefixedBucket *prefixedBucket
 		ReadWriters       []*ReadWriteCloser
@@ -35,9 +36,37 @@ type (
 		Reader io.ReadCloser
 		Writer io.WriteCloser
 	}
+
+	bucketOptions struct {
+		reader    io.Reader
+		sourceURL string
+	}
+
+	BucketOption func(*bucketOptions)
 )
 
-func NewBucket(ctx context.Context, downscopedToken string, srcURL, dstURL string) (*Bucket, error) {
+func WithReader(reader io.Reader) BucketOption {
+	return func(o *bucketOptions) {
+		o.reader = reader
+	}
+}
+
+func WithSourceURL(srcURL string) BucketOption {
+	return func(o *bucketOptions) {
+		o.sourceURL = srcURL
+	}
+}
+
+func NewBucket(ctx context.Context, downscopedToken string, dstURL string, opts ...BucketOption) (*Bucket, error) {
+	if downscopedToken == "" {
+		return nil, errors.New("downscopedToken is required")
+	}
+
+	bucketOption := &bucketOptions{}
+	for _, opt := range opts {
+		opt(bucketOption)
+	}
+
 	client, err := storage.NewClient(
 		ctx,
 		option.WithTokenSource(
@@ -52,11 +81,6 @@ func NewBucket(ctx context.Context, downscopedToken string, srcURL, dstURL strin
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}
 
-	srcPrefixedBucket, err := bucketFromObjectURL(srcURL)
-	if err != nil {
-		return nil, err
-	}
-
 	dstPrefixedBucket, err := bucketFromObjectURL(dstURL)
 	if err != nil {
 		return nil, err
@@ -64,16 +88,28 @@ func NewBucket(ctx context.Context, downscopedToken string, srcURL, dstURL strin
 
 	b := &Bucket{
 		client:            client,
-		srcPrefixedBucket: srcPrefixedBucket,
 		dstPrefixedBucket: dstPrefixedBucket,
 	}
 
-	rws, err := b.newObjectReadWriteCloser(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create read writers: %w", err)
+	if src := bucketOption.sourceURL; src != "" {
+		srcPrefixedBucket, err := bucketFromObjectURL(src)
+		if err != nil {
+			return nil, err
+		}
+
+		b.srcPrefixedBucket = srcPrefixedBucket
+
+		rws, err := b.newObjectReadWriteCloser(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create read writers: %w", err)
+		}
+
+		b.ReadWriters = rws
 	}
 
-	b.ReadWriters = rws
+	if reader := bucketOption.reader; reader != nil {
+		b.FileReader = reader
+	}
 
 	return b, nil
 }
@@ -134,6 +170,15 @@ func (b *Bucket) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteClos
 	return rwc, nil
 }
 
+func (b *Bucket) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, error) {
+	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
+	writer := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, "data.csv")).NewWriter(ctx)
+	return &ReadWriteCloser{
+		name:   CompletedFile,
+		Writer: writer,
+	}, nil
+}
+
 func (b *Bucket) Complete(ctx context.Context) error {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
@@ -146,8 +191,10 @@ func (b *Bucket) Complete(ctx context.Context) error {
 
 func (b *Bucket) Close() error {
 	for _, rw := range b.ReadWriters {
-		if err := rw.Reader.Close(); err != nil {
-			return err
+		if rw.Reader != nil {
+			if err := rw.Reader.Close(); err != nil {
+				return err
+			}
 		}
 
 		if err := rw.Writer.Close(); err != nil {
