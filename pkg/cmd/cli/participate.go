@@ -5,11 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
+
+	"optable-pair-cli/pkg/cmd/cli/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
-	"os"
-	"path/filepath"
 )
 
 type (
@@ -47,62 +46,24 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
-	var (
-		in  io.Reader
-		out io.Writer
-		err error
-	)
-	if c.Input == "" {
-		in = os.Stdin
-	} else {
-		f, err := os.Open(c.Input)
-		if err != nil {
-			return fmt.Errorf("failed to open input file: %w", err)
-		}
-
-		fi, err := os.Stat(c.Input)
-		if err != nil {
-			return fmt.Errorf("failed to stat input file: %w", err)
-		}
-
-		// regular file
-		if fi.IsDir() {
-			var readers []io.Reader
-			dirEntry, err := os.ReadDir(c.Input)
-			if err != nil {
-				return fmt.Errorf("failed to read directory: %w", err)
-			}
-
-			for _, entry := range dirEntry {
-				// ignore subdirectories
-				if !entry.IsDir() {
-					f, err := os.Open(filepath.Join(c.Input, entry.Name()))
-					if err != nil {
-						return fmt.Errorf("failed to open file: %w", err)
-					}
-
-					readers = append(readers, f)
-				}
-			}
-
-			in = io.MultiReader(readers...)
-		} else {
-			in = f
-		}
+	in, err := io.FileReaders(c.Input)
+	if err != nil {
+		return fmt.Errorf("io.FileReaders: %w", err)
 	}
 
 	// TODO(Justin): write to GCS bucket url from Cleanroom passed by token.
-	if c.Output == "" {
-		out = os.Stdout
-	} else {
-		out, err = os.Create(c.Output)
-		if err != nil {
-			return fmt.Errorf("failed to open output file: %w", err)
-		}
+	out, err := io.FileWriter(c.Output)
+	if err != nil {
+		return fmt.Errorf("io.FileWriter: %w", err)
 	}
 
-	if err := pair.HashEncrypt(cli.Context(), in, out, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("HashEncrypt: %w", err)
+	rw, err := pair.NewPAIRIDReadWriter(in, out)
+	if err != nil {
+		return fmt.Errorf("NewPAIRIDReadWriter: %w", err)
+	}
+
+	if err := rw.HashEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
+		return fmt.Errorf("rw.HashEncrypt: %w", err)
 	}
 
 	return nil
