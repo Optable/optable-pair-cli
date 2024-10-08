@@ -14,7 +14,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const batchSize = 1024
+const (
+	batchSize = 1024
+
+	maxOperationRunTime = 4 * time.Hour
+)
 
 type (
 	pairIDReadWriter struct {
@@ -119,6 +123,10 @@ func (p *pairIDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, 
 }
 
 func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privatKey string, op PAIROperation) error {
+	// Cancel the context when the operation needs more than an 4 hours
+	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
+	defer cancel()
+
 	var (
 		logger    = zerolog.Ctx(ctx)
 		startTime = time.Now()
@@ -150,7 +158,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.read, p.written, time.Since(startTime))
 			return nil
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.Join(p.err, ctx.Err())
 		default:
 			g.Go(func() error {
 				pk, err := keys.NewPAIRPrivateKey(salt, privatKey)
