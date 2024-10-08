@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/storage"
+	"github.com/rs/zerolog"
 	"gocloud.dev/blob/gcsblob"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/iterator"
@@ -150,7 +151,8 @@ func bucketFromObjectURL(objectURL string) (*prefixedBucket, error) {
 // except for the .Completed file.
 // It then opens a writer for each object under the same name specified by the destinationPrefix.
 func (b *Bucket) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteCloser, error) {
-	query := &storage.Query{Prefix: b.srcPrefixedBucket.prefix}
+	logger := zerolog.Ctx(ctx)
+	query := &storage.Query{Prefix: b.srcPrefixedBucket.prefix + "/"}
 
 	srcBucket := b.client.Bucket(b.srcPrefixedBucket.bucket)
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
@@ -163,6 +165,7 @@ func (b *Bucket) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteClos
 		if errors.Is(err, iterator.Done) {
 			break
 		} else if err != nil {
+			logger.Debug().Err(err).Msgf("failed to list objects from source bucket %s", b.srcPrefixedBucket.prefix)
 			return nil, err
 		}
 
