@@ -89,7 +89,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	}
 
 	if err := pairRW.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("pairRW.ReEncrypt: %w", err)
+		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
 	}
 
 	return b.Complete(ctx)

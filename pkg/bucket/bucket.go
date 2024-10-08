@@ -83,7 +83,7 @@ func NewBucket(ctx context.Context, downscopedToken string, dstURL string, opts 
 
 	dstPrefixedBucket, err := bucketFromObjectURL(dstURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
 	b := &Bucket{
@@ -94,7 +94,7 @@ func NewBucket(ctx context.Context, downscopedToken string, dstURL string, opts 
 	if src := bucketOption.sourceURL; src != "" {
 		srcPrefixedBucket, err := bucketFromObjectURL(src)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse source URL: %w", err)
 		}
 
 		b.srcPrefixedBucket = srcPrefixedBucket
@@ -190,10 +190,14 @@ func (b *Bucket) Complete(ctx context.Context) error {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
 	if _, err := completedWriter.Write([]byte{}); err != nil {
-		return err
+		return fmt.Errorf("failed to write completed file: %w", err)
 	}
 
-	return completedWriter.Close()
+	if err := completedWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close completed file: %w", err)
+	}
+
+	return nil
 }
 
 func (b *Bucket) Close() error {
