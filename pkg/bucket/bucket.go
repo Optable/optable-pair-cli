@@ -18,6 +18,8 @@ import (
 const CompletedFile = ".Completed"
 
 type (
+	// Bucket contains the storage client and read writers for the source and destination buckets.
+	// Optionally, it can use a file reader instead of the source bucket.
 	Bucket struct {
 		client            *storage.Client
 		FileReader        io.Reader
@@ -31,6 +33,7 @@ type (
 		prefix string
 	}
 
+	// ReadWriteCloser contains the name of the object, its reader and a writer.
 	ReadWriteCloser struct {
 		name   string
 		Reader io.ReadCloser
@@ -42,6 +45,7 @@ type (
 		sourceURL string
 	}
 
+	// BucketOption allows to configure the behavior of the Bucket.
 	BucketOption func(*bucketOptions)
 )
 
