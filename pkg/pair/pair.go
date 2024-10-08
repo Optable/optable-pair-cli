@@ -158,7 +158,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.read, p.written, time.Since(startTime))
 			return nil
 		case <-ctx.Done():
-			return errors.Join(p.err, ctx.Err())
+			return ctx.Err()
 		default:
 			g.Go(func() error {
 				pk, err := keys.NewPAIRPrivateKey(salt, privatKey)
