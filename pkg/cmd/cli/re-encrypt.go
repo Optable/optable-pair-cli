@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"optable-pair-cli/pkg/bucket"
 	"optable-pair-cli/pkg/cmd/cli/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
@@ -17,15 +18,18 @@ import (
 type (
 	ReEncryptCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		GCSToken           string `arg:"" help:"The GCS token to use for the operation."`
-		Input              string `cmd:"" short:"i" help:"The GCS bucket URL containing objects of publisher's encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
-		Output             string `cmd:"" short:"o" help:"The GCS bucket URL to write the re-encrypted publisher PAIR IDs to. If given a file path, it will write to the file instead. If not provided, it will write to stdout."`
-		AdvertiserKey      string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
+		// TODO(Justin): read token from GetCleanroom using the PairCleanroomToken.
+		GCSToken      string `arg:"" help:"The GCS token to use for the operation."`
+		Input         string `cmd:"" short:"i" help:"The GCS bucket URL containing objects of publisher's encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
+		Output        string `cmd:"" short:"o" help:"The GCS bucket URL to write the re-encrypted publisher PAIR IDs to. If given a file path, it will write to the file instead. If not provided, it will write to stdout."`
+		AdvertiserKey string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		NumThreads    int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
 	}
 )
 
 func (c *ReEncryptCmd) Run(cli *CliContext) error {
+	ctx := cli.Context()
+
 	if c.PairCleanroomToken == "" {
 		return errors.New("pair clean room token is required")
 	}
@@ -67,7 +71,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
 		}
 
-		return rw.ReEncrypt(cli.Context(), c.NumThreads, saltStr, c.AdvertiserKey)
+		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
 	// TODO (Justin): use token to read and write to GCS.
@@ -75,7 +79,28 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return errors.New("GCS token is required")
 	}
 
-	return nil
+	if !isGCSBucketURL(c.Output) {
+		return errors.New("output must be a GCS bucket URL")
+	}
+
+	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.Input))
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucket: %w", err)
+	}
+	defer b.Close()
+
+	for _, rw := range b.ReadWriters {
+		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
+		if err != nil {
+			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+		}
+
+		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
+			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
+		}
+	}
+
+	return b.Complete(ctx)
 }
 
 func isGCSBucketURL(path string) bool {
