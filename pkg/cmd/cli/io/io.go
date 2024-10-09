@@ -12,12 +12,12 @@ func FileReaders(path string) (io.Reader, error) {
 		return os.Stdin, nil
 	}
 
-	fi, err := os.Stat(path)
+	isDir, err := IsDir(path)
 	if err != nil {
-		return nil, fmt.Errorf("os.Stat: %w", err)
+		return nil, fmt.Errorf("isDir: %w", err)
 	}
 
-	if !fi.IsDir() {
+	if !isDir {
 		return os.Open(path)
 	}
 
@@ -48,4 +48,18 @@ func FileWriter(path string) (io.Writer, error) {
 	}
 
 	return os.Create(path)
+}
+
+func IsDir(path string) (bool, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false, fmt.Errorf("os.Stat: %w", err)
+	}
+
+	return fi.IsDir(), nil
+}
+
+func ChunkedFileWriter(path string, index int) (io.Writer, error) {
+	fn := fmt.Sprintf("%s/%s", path, fmt.Sprintf("matched_advertiser_pair_ids_%d.csv", index))
+	return os.Create(fn)
 }

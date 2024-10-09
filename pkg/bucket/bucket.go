@@ -19,9 +19,9 @@ import (
 const CompletedFile = ".Completed"
 
 type (
-	// Bucket contains the storage client and read writers for the source and destination buckets.
+	// BucketReadWriter contains the storage client and read writers for the source and destination buckets.
 	// Optionally, it can use a file reader instead of the source bucket.
-	Bucket struct {
+	BucketReadWriter struct {
 		client            *storage.Client
 		FileReader        io.Reader
 		srcPrefixedBucket *prefixedBucket
@@ -64,9 +64,9 @@ func WithSourceURL(srcURL string) BucketOption {
 	}
 }
 
-// NewBucket creates a new Bucket object and opens readers and writers for the specified source and destination URLs.
+// NewBucketReadWriter creates a new Bucket object and opens readers and writers for the specified source and destination URLs.
 // Caller needs to call Close() on the returned Bucket object to release resources.
-func NewBucket(ctx context.Context, downscopedToken string, dstURL string, opts ...BucketOption) (*Bucket, error) {
+func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL string, opts ...BucketOption) (*BucketReadWriter, error) {
 	if downscopedToken == "" {
 		return nil, errors.New("downscopedToken is required")
 	}
@@ -95,7 +95,7 @@ func NewBucket(ctx context.Context, downscopedToken string, dstURL string, opts 
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	b := &Bucket{
+	b := &BucketReadWriter{
 		client:            client,
 		dstPrefixedBucket: dstPrefixedBucket,
 	}
@@ -150,7 +150,7 @@ func bucketFromObjectURL(objectURL string) (*prefixedBucket, error) {
 // newObjectReadWriteCloser lists the objects specified by the srcPrefixedBucket and opens a reader for each object,
 // except for the .Completed file.
 // It then opens a writer for each object under the same name specified by the destinationPrefix.
-func (b *Bucket) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteCloser, error) {
+func (b *BucketReadWriter) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteCloser, error) {
 	logger := zerolog.Ctx(ctx)
 	query := &storage.Query{Prefix: b.srcPrefixedBucket.prefix + "/"}
 
@@ -189,7 +189,7 @@ func (b *Bucket) newObjectReadWriteCloser(ctx context.Context) ([]*ReadWriteClos
 }
 
 // newObjectWriteCloser creates a new writer for the destination bucket.
-func (b *Bucket) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, error) {
+func (b *BucketReadWriter) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, error) {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	writer := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, "data.csv")).NewWriter(ctx)
 	return &ReadWriteCloser{
@@ -199,7 +199,7 @@ func (b *Bucket) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, er
 }
 
 // Complete writes a .Completed file to the destination bucket to signal that the transfer is complete.
-func (b *Bucket) Complete(ctx context.Context) error {
+func (b *BucketReadWriter) Complete(ctx context.Context) error {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
 	if _, err := completedWriter.Write([]byte{}); err != nil {
@@ -214,7 +214,7 @@ func (b *Bucket) Complete(ctx context.Context) error {
 }
 
 // Close closes the client and all read writers.
-func (b *Bucket) Close() error {
+func (b *BucketReadWriter) Close() error {
 	for _, rw := range b.ReadWriters {
 		if rw.Reader != nil {
 			if err := rw.Reader.Close(); err != nil {

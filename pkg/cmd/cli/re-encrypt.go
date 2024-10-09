@@ -83,7 +83,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return errors.New("output must be a GCS bucket URL")
 	}
 
-	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.Input))
+	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.Input))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}

@@ -73,7 +73,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return rw.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Output, bucket.WithReader(in))
+	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
