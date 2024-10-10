@@ -224,5 +224,7 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 
 	logger.Debug().Msgf("Match: read %d IDs, written %d PAIR IDs in %s", m.reader.read, m.writer.written.Load(), time.Since(startTime))
 
+	logger.Info().Msgf("Matched %d triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", m.writer.written.Load(), m.writer.path)
+
 	return m.writer.Close()
 }
