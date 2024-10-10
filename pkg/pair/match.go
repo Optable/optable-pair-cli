@@ -7,6 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"optable-pair-cli/pkg/keys"
+	"os"
+	"runtime"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,10 +21,15 @@ import (
 type (
 	matcher struct {
 		reader      *pairIDReader
-		w           io.Writer
-		written     int
-		intersected []string
+		writer      *writer
+		intersected chan []byte
 		hashMap     map[string]struct{}
+	}
+
+	writer struct {
+		path    string
+		writers []io.WriteCloser
+		written atomic.Uint64
 	}
 )
 
@@ -33,7 +43,10 @@ func NewMatcher(adv, pub []io.Reader, out string) (*matcher, error) {
 			batch:     make(chan [][]byte, batchSize),
 			cancel:    cancel,
 		},
-		intersected: make([]string, 0),
+		writer: &writer{
+			path: out,
+		},
+		intersected: make(chan []byte, batchSize),
 		hashMap:     make(map[string]struct{}),
 	}
 
@@ -62,7 +75,7 @@ func NewMatcher(adv, pub []io.Reader, out string) (*matcher, error) {
 					}
 
 					// normalize and store
-					maps[i][normalize([]byte(record[0]))] = struct{}{}
+					maps[i][record[0]] = struct{}{}
 				}
 			}
 		})
@@ -89,42 +102,117 @@ func normalize(id []byte) string {
 	return base64.StdEncoding.EncodeToString(id)
 }
 
-func (m *matcher) Match(ctx context.Context, numWorkers int) error {
+func (w *writer) NewWriter(index int) (*csv.Writer, error) {
+	if w.path == "" {
+		return csv.NewWriter(os.Stdout), nil
+	}
+
+	s, err := os.Stat(w.path)
+	if err != nil {
+		return nil, err
+	}
+
+	if !s.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", w.path)
+	}
+
+	p := strings.TrimRight(w.path, "/")
+	f, err := os.Create(fmt.Sprintf("%s/result_%d.csv", p, index))
+	if err != nil {
+		return nil, err
+	}
+
+	w.writers = append(w.writers, f)
+	return csv.NewWriter(f), nil
+}
+
+func (w *writer) Close() error {
+	for _, f := range w.writers {
+		if err := f.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey string) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
 	defer cancel()
 
 	var (
-		logger    = zerolog.Ctx(ctx)
-		startTime = time.Now()
+		logger        = zerolog.Ctx(ctx)
+		startTime     = time.Now()
+		maxNumWorkers = runtime.GOMAXPROCS(0)
 	)
 
-	// Limit the number of workers to 8
-	if numWorkers > 8 {
-		numWorkers = 8
+	if numWorkers > maxNumWorkers {
+		numWorkers = maxNumWorkers
+
+		logger.Warn().Msgf("Number of workers is limited to %d", numWorkers)
+	}
+
+	pk, err := keys.NewPAIRPrivateKey(salt, privateKey)
+	if err != nil {
+		return fmt.Errorf("NewPAIRPrivateKey: %w", err)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(numWorkers)
 
+	// producer
 	g.Go(func() error {
+		defer close(m.intersected)
+
+		sent := 0
 		for batchedIDs := range m.reader.batch {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 				for _, id := range batchedIDs {
-					if _, ok := m.hashMap[normalize(id)]; ok {
-						m.intersected = append(m.intersected, string(id))
-						m.written++
+					if _, ok := m.hashMap[string(id)]; ok {
+						m.intersected <- id
+						sent++
 					}
 				}
 			}
 		}
 
-		logger.Debug().Msgf("Match: read %d IDs, written %d PAIR IDs in %s", m.reader.read, m.written, time.Since(startTime))
 		return nil
 	})
+
+	// consumer
+	for i := 0; i < numWorkers; i++ {
+		g.Go(func() error {
+			// write to file
+			w, err := m.writer.NewWriter(i)
+			if err != nil {
+				return err
+			}
+
+			for matched := range m.intersected {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					decrypted, err := pk.Decrypt(matched)
+					if err != nil {
+						return err
+					}
+
+					if err := w.Write([]string{string(decrypted)}); err != nil {
+						return err
+					}
+					m.writer.written.Add(1)
+				}
+			}
+
+			// flush and close
+			w.Flush()
+			return w.Error()
+		})
+	}
 
 	if err := g.Wait(); err != nil {
 		return err
@@ -134,5 +222,7 @@ func (m *matcher) Match(ctx context.Context, numWorkers int) error {
 		return m.reader.err
 	}
 
-	return nil
+	logger.Debug().Msgf("Match: read %d IDs, written %d PAIR IDs in %s", m.reader.read, m.writer.written.Load(), time.Since(startTime))
+
+	return m.writer.Close()
 }

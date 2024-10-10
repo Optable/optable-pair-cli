@@ -130,7 +130,7 @@ func (p *pairIDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, 
 	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationReEncrypt)
 }
 
-func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privatKey string, op PAIROperation) error {
+func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privateKey string, op PAIROperation) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
 	defer cancel()
@@ -169,7 +169,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			return ctx.Err()
 		default:
 			g.Go(func() error {
-				pk, err := keys.NewPAIRPrivateKey(salt, privatKey)
+				pk, err := keys.NewPAIRPrivateKey(salt, privateKey)
 				if err != nil {
 					err := fmt.Errorf("NewPAIRPrivateKey: %w", err)
 					errChan <- err

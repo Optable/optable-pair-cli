@@ -69,7 +69,7 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("pair.NewMatcher: %w", err)
 		}
 
-		return matcher.Match(ctx, c.NumThreads)
+		return matcher.Match(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
 	// TODO (Justin): use token to read from GCS.
