@@ -5,10 +5,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 
 	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/cmd/cli/io"
+	cio "optable-pair-cli/pkg/cmd/cli/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 
@@ -56,19 +57,19 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 
 	// Allow testing with local files.
 	if !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
-		in, err := io.FileReaders(c.Input)
+		in, err := cio.FileReaders(c.Input)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
 		}
 
-		out, err := io.FileWriter(c.Output)
+		out, err := cio.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("fileWriters: %w", err)
 		}
 
-		rw, err := pair.NewPAIRIDReadWriter(in, out)
+		rw, err := pair.NewPAIRIDReadWriter(io.MultiReader(in...), out)
 		if err != nil {
-			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
 
 		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
@@ -92,7 +93,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	for _, rw := range b.ReadWriters {
 		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
 		if err != nil {
-			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
 
 		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {

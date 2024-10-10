@@ -22,11 +22,15 @@ const (
 
 type (
 	pairIDReadWriter struct {
-		r         *csv.Reader
+		reader    *pairIDReader
 		w         *csv.Writer
 		writeLock *sync.Mutex
-		read      int
 		written   int
+	}
+
+	pairIDReader struct {
+		r         *csv.Reader
+		read      int
 		batchSize int
 		batch     chan [][]byte
 		err       error
@@ -56,12 +60,14 @@ func NewPAIRIDReadWriter(r io.Reader, w io.Writer) (*pairIDReadWriter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &pairIDReadWriter{
-		r:         csv.NewReader(r),
 		w:         csv.NewWriter(w),
 		writeLock: &sync.Mutex{},
-		batchSize: batchSize,
-		batch:     make(chan [][]byte, batchSize),
-		cancel:    cancel,
+		reader: &pairIDReader{
+			r:         csv.NewReader(r),
+			batchSize: batchSize,
+			batch:     make(chan [][]byte, batchSize),
+			cancel:    cancel,
+		},
 	}
 
 	if batchSize <= 0 {
@@ -69,49 +75,51 @@ func NewPAIRIDReadWriter(r io.Reader, w io.Writer) (*pairIDReadWriter, error) {
 	}
 
 	// Start reading in the background
-	go func() {
-		defer close(p.batch)
-		defer p.cancel()
-
-		batch := 0
-		ids := make([][]byte, 0, batchSize)
-		for {
-			record, err := p.r.Read()
-			if errors.Is(err, io.EOF) {
-				p.err = io.EOF
-				// Write the last batch
-				if len(ids) > 0 {
-					p.batch <- ids
-					p.read += len(ids)
-				}
-
-				return
-			} else if err != nil {
-				p.err = err
-				return
-			}
-
-			// Input should have only one id column
-			ids = append(ids, []byte(record[0]))
-			batch++
-
-			// sent a full batch of records to the channel.
-			if batch == batchSize {
-				select {
-				case <-ctx.Done():
-					p.err = ctx.Err()
-					return
-				case p.batch <- ids:
-					// reset the batch
-					ids = make([][]byte, 0, batchSize)
-					batch = 0
-					p.read += batchSize
-				}
-			}
-		}
-	}()
+	go readPAIRIDs(ctx, p.reader)
 
 	return p, nil
+}
+
+func readPAIRIDs(ctx context.Context, p *pairIDReader) {
+	defer close(p.batch)
+	defer p.cancel()
+
+	batch := 0
+	ids := make([][]byte, 0, p.batchSize)
+	for {
+		record, err := p.r.Read()
+		if errors.Is(err, io.EOF) {
+			p.err = io.EOF
+			// Write the last batch
+			if len(ids) > 0 {
+				p.batch <- ids
+				p.read += len(ids)
+			}
+
+			return
+		} else if err != nil {
+			p.err = err
+			return
+		}
+
+		// Input should have only one id column
+		ids = append(ids, []byte(record[0]))
+		batch++
+
+		// sent a full batch of records to the channel.
+		if batch == batchSize {
+			select {
+			case <-ctx.Done():
+				p.err = ctx.Err()
+				return
+			case p.batch <- ids:
+				// reset the batch
+				ids = make([][]byte, 0, batchSize)
+				batch = 0
+				p.read += batchSize
+			}
+		}
+	}
 }
 
 func (p *pairIDReadWriter) HashEncrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
@@ -155,7 +163,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			}
 			close(done)
 
-			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.read, p.written, time.Since(startTime))
+			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read, p.written, time.Since(startTime))
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
@@ -202,9 +210,9 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 // operate reads a batch of records from the input reader,
 // runs the PAIR operation on the records and writes to the underlying writer.
 func (p *pairIDReadWriter) operate(do func([]byte) ([]byte, error)) error {
-	ids, ok := <-p.batch
+	ids, ok := <-p.reader.batch
 	if !ok {
-		return p.err
+		return p.reader.err
 	}
 
 	records := make([][]string, 0, len(ids))

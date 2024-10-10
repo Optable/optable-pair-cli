@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 )
 
-func FileReaders(path string) (io.Reader, error) {
+func FileReaders(path string) ([]io.Reader, error) {
 	if path == "" {
-		return os.Stdin, nil
+		return []io.Reader{os.Stdin}, nil
 	}
 
 	isDir, err := IsDir(path)
@@ -18,7 +18,12 @@ func FileReaders(path string) (io.Reader, error) {
 	}
 
 	if !isDir {
-		return os.Open(path)
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("os.Open: %w", err)
+		}
+
+		return []io.Reader{f}, nil
 	}
 
 	var readers []io.Reader
@@ -39,7 +44,7 @@ func FileReaders(path string) (io.Reader, error) {
 		}
 	}
 
-	return io.MultiReader(readers...), nil
+	return readers, nil
 }
 
 func FileWriter(path string) (io.Writer, error) {
