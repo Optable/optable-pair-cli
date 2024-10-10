@@ -6,7 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"os"
 	"runtime"
@@ -107,12 +107,12 @@ func (w *writer) NewWriter(index int) (*csv.Writer, error) {
 		return csv.NewWriter(os.Stdout), nil
 	}
 
-	s, err := os.Stat(w.path)
+	isDir, err := io.IsDir(w.path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("IsDir: %w", err)
 	}
 
-	if !s.IsDir() {
+	if !isDir {
 		return nil, fmt.Errorf("%s is not a directory", w.path)
 	}
 

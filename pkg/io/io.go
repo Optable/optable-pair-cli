@@ -8,9 +8,12 @@ import (
 )
 
 type (
-	ReadCloser = io.ReadCloser
-	Reader     = io.Reader
+	ReadCloser  = io.ReadCloser
+	Reader      = io.Reader
+	WriteCloser = io.WriteCloser
 )
+
+var EOF = io.EOF
 
 func MultiReader(readers ...io.Reader) io.Reader {
 	return io.MultiReader(readers...)
