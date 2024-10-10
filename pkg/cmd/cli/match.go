@@ -5,10 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 
 	"optable-pair-cli/pkg/bucket"
-	cio "optable-pair-cli/pkg/cmd/cli/io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 )
@@ -55,12 +54,12 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 
 	// Allow testing with local files.
 	if !isGCSBucketURL(c.AdvertiserInput) && !isGCSBucketURL(c.PublisherInput) {
-		adv, err := cio.FileReaders(c.AdvertiserInput)
+		adv, err := io.FileReaders(c.AdvertiserInput)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
 		}
 
-		pub, err := cio.FileReaders(c.PublisherInput)
+		pub, err := io.FileReaders(c.PublisherInput)
 		if err != nil {
 			return fmt.Errorf("fileWriters: %w", err)
 		}

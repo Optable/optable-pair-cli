@@ -5,11 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 
 	"optable-pair-cli/pkg/bucket"
-	cio "optable-pair-cli/pkg/cmd/cli/io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 
@@ -57,12 +56,12 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 
 	// Allow testing with local files.
 	if !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
-		in, err := cio.FileReaders(c.Input)
+		in, err := io.FileReaders(c.Input)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
 		}
 
-		out, err := cio.FileWriter(c.Output)
+		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("fileWriters: %w", err)
 		}

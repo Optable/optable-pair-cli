@@ -5,10 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 
 	"optable-pair-cli/pkg/bucket"
-	cio "optable-pair-cli/pkg/cmd/cli/io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 )
@@ -52,9 +51,9 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
-	fs, err := cio.FileReaders(c.Input)
+	fs, err := io.FileReaders(c.Input)
 	if err != nil {
-		return fmt.Errorf("cio.FileReaders: %w", err)
+		return fmt.Errorf("io.FileReaders: %w", err)
 	}
 	in := io.MultiReader(fs...)
 
@@ -62,9 +61,9 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	if !isGCSBucketURL(c.Output) {
 
 		// TODO(Justin): write to GCS bucket url from Cleanroom passed by token.
-		out, err := cio.FileWriter(c.Output)
+		out, err := io.FileWriter(c.Output)
 		if err != nil {
-			return fmt.Errorf("cio.FileWriter: %w", err)
+			return fmt.Errorf("io.FileWriter: %w", err)
 		}
 
 		rw, err := pair.NewPAIRIDReadWriter(in, out)

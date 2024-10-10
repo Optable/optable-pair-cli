@@ -7,6 +7,15 @@ import (
 	"path/filepath"
 )
 
+type (
+	ReadCloser = io.ReadCloser
+	Reader     = io.Reader
+)
+
+func MultiReader(readers ...io.Reader) io.Reader {
+	return io.MultiReader(readers...)
+}
+
 func FileReaders(path string) ([]io.Reader, error) {
 	if path == "" {
 		return []io.Reader{os.Stdin}, nil
@@ -62,9 +71,4 @@ func IsDir(path string) (bool, error) {
 	}
 
 	return fi.IsDir(), nil
-}
-
-func ChunkedFileWriter(path string, index int) (io.Writer, error) {
-	fn := fmt.Sprintf("%s/%s", path, fmt.Sprintf("matched_advertiser_pair_ids_%d.csv", index))
-	return os.Create(fn)
 }
