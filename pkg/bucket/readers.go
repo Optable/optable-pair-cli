@@ -29,64 +29,10 @@ type (
 		AdvPrefixedBucket *prefixedBucket
 		PubPrefixedBucket *prefixedBucket
 	}
-
-	bucketReadersOptions struct {
-		files  *fileReaders
-		bucket *bucketURL
-	}
-
-	bucketURL struct {
-		downscopedToken string
-		advURL          string
-		pubURL          string
-	}
-
-	fileReaders struct {
-		advReader io.ReadCloser
-		pubReader io.ReadCloser
-	}
-
-	// BucketOption allows to configure the behavior of the Bucket.
-	BucketReadersOption func(*bucketReadersOptions)
 )
 
-func WithFiles(advReader, pubReader io.ReadCloser) BucketReadersOption {
-	return func(o *bucketReadersOptions) {
-		o.files = &fileReaders{
-			advReader: advReader,
-			pubReader: pubReader,
-		}
-	}
-}
-
-func WithGCS(downscopedToken, advURL, pubURL string) BucketReadersOption {
-	return func(o *bucketReadersOptions) {
-		o.bucket = &bucketURL{
-			downscopedToken: downscopedToken,
-			advURL:          advURL,
-			pubURL:          pubURL,
-		}
-	}
-}
-
-func NewBucketReaders(ctx context.Context, opts ...BucketReadersOption) (*BucketReaders, error) {
-	b := &bucketReadersOptions{}
-	for _, opt := range opts {
-		opt(b)
-	}
-
-	if b.files != nil {
-		return &BucketReaders{
-			AdvReader: []io.ReadCloser{b.files.advReader},
-			PubReader: []io.ReadCloser{b.files.pubReader},
-		}, nil
-	}
-
-	if b.bucket == nil {
-		return nil, ErrInvalidBucketOptions
-	}
-
-	if b.bucket.downscopedToken == "" {
+func NewBucketReaders(ctx context.Context, downScopedToken, advURL, pubURL string) (*BucketReaders, error) {
+	if downScopedToken == "" {
 		return nil, errors.New("downscopedToken is required")
 	}
 
@@ -95,7 +41,7 @@ func NewBucketReaders(ctx context.Context, opts ...BucketReadersOption) (*Bucket
 		option.WithTokenSource(
 			oauth2.StaticTokenSource(
 				&oauth2.Token{
-					AccessToken: b.bucket.downscopedToken,
+					AccessToken: downScopedToken,
 				},
 			),
 		),
@@ -104,21 +50,27 @@ func NewBucketReaders(ctx context.Context, opts ...BucketReadersOption) (*Bucket
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}
 
-	advPrefixedBucket, err := bucketFromObjectURL(b.bucket.advURL)
+	advPrefixedBucket, err := bucketFromObjectURL(advURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	pubPrefixedBucket, err := bucketFromObjectURL(b.bucket.pubURL)
+	pubPrefixedBucket, err := bucketFromObjectURL(pubURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	return &BucketReaders{
+	bucker := &BucketReaders{
 		client:            client,
 		AdvPrefixedBucket: advPrefixedBucket,
 		PubPrefixedBucket: pubPrefixedBucket,
-	}, nil
+	}
+
+	if err := bucker.newObjectReaders(ctx); err != nil {
+		return nil, err
+	}
+
+	return bucker, nil
 }
 
 // newObjectReaders lists the objects specified by the advPrefixedBucket and pubPrefixedBucket and opens a reader for each object,

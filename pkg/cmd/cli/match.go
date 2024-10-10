@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 
 	"optable-pair-cli/pkg/bucket"
 	cio "optable-pair-cli/pkg/cmd/cli/io"
@@ -77,22 +78,24 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 		return errors.New("GCS token is required")
 	}
 
-	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.AdvertiserInput))
+	b, err := bucket.NewBucketReaders(ctx, c.GCSToken, c.AdvertiserInput, c.PublisherInput)
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer b.Close()
 
-	for _, rw := range b.ReadWriters {
-		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
-		if err != nil {
-			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
-		}
-
-		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
-		}
+	matcher, err := pair.NewMatcher(readersFromReadClosers(b.AdvReader), readersFromReadClosers(b.PubReader), c.Output)
+	if err != nil {
+		return fmt.Errorf("pair.NewMatcher: %w", err)
 	}
 
-	return b.Complete(ctx)
+	return matcher.Match(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
+}
+
+func readersFromReadClosers(rs []io.ReadCloser) []io.Reader {
+	readers := make([]io.Reader, len(rs))
+	for i, r := range rs {
+		readers[i] = r
+	}
+	return readers
 }
