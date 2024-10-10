@@ -18,7 +18,7 @@ type (
 		// TODO(Justin): read token from GetCleanroom using the PairCleanroomToken.
 		GCSToken        string `arg:"" help:"The GCS token to use for the operation."`
 		AdvertiserInput string `cmd:"" short:"a" help:"The GCS bucket URL containing objects of advertiser's triple encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
-		PublisherInput  string `cmd:"" short:"a" help:"The GCS bucket URL containing objects of publisher's triple encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
+		PublisherInput  string `cmd:"" short:"p" help:"The GCS bucket URL containing objects of publisher's triple encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
 		Output          string `cmd:"" short:"o" help:"The file path to write the decrypted and matched double encrypted PAIR IDs. If given a directory, the output will be files each containing up to 1 million IDs, if given a file, it will contain all the IDs. If none are provided, it will write to stdout."`
 		AdvertiserKey   string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
 		NumThreads      int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
