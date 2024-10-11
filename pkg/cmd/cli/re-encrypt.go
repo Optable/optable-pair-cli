@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/cmd/cli/io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 
@@ -66,9 +66,9 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("fileWriters: %w", err)
 		}
 
-		rw, err := pair.NewPAIRIDReadWriter(in, out)
+		rw, err := pair.NewPAIRIDReadWriter(io.MultiReader(in...), out)
 		if err != nil {
-			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
 
 		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
@@ -83,7 +83,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return errors.New("output must be a GCS bucket URL")
 	}
 
-	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.Input))
+	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithSourceURL(c.Input))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
@@ -92,7 +92,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	for _, rw := range b.ReadWriters {
 		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
 		if err != nil {
-			return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
 
 		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {

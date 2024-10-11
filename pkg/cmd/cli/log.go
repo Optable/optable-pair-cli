@@ -8,19 +8,16 @@ import (
 )
 
 // LevelFromVerbosity takes a command-line `-v` stackable flag count, e.g.
-// `-vv`, `-vvv` and transforms it into a sensible loglevel.
+// `-v`, `-vv` and transforms it into a sensible loglevel.
 // The mapping is:
-// <none> = Warn
-// -v = Info
-// -vv = Debug
-// -vvv = Trace
+// <none> = Info
+// -v = Debug
+// -vv = Trace
 func LevelFromVerbosity(v int) zerolog.Level {
 	switch v {
 	case 0:
-		return zerolog.WarnLevel
-	case 1:
 		return zerolog.InfoLevel
-	case 2:
+	case 1:
 		return zerolog.DebugLevel
 	default:
 		return zerolog.TraceLevel

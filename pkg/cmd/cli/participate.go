@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/cmd/cli/io"
+	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 )
@@ -51,10 +51,11 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create PAIR private key: %w", err)
 	}
 
-	in, err := io.FileReaders(c.Input)
+	fs, err := io.FileReaders(c.Input)
 	if err != nil {
 		return fmt.Errorf("io.FileReaders: %w", err)
 	}
+	in := io.MultiReader(fs...)
 
 	// Allow testing with local files.
 	if !isGCSBucketURL(c.Output) {
@@ -73,7 +74,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return rw.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	b, err := bucket.NewBucket(ctx, c.GCSToken, c.Output, bucket.WithReader(in))
+	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
@@ -85,7 +86,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 
 	pairRW, err := pair.NewPAIRIDReadWriter(b.FileReader, b.ReadWriters[0].Writer)
 	if err != nil {
-		return fmt.Errorf("pairi.NewPAIRIDReadWriter: %w", err)
+		return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 	}
 
 	if err := pairRW.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {

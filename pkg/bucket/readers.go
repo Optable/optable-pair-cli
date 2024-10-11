@@ -1,0 +1,143 @@
+package bucket
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"cloud.google.com/go/storage"
+	"github.com/rs/zerolog"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
+)
+
+var (
+	ErrInvalidBucketOptions = errors.New("invalid bucket options")
+	ErrTokenRequired        = errors.New("downscopedToken is required")
+)
+
+type (
+
+	//BucketReaders contains the storage client and readers from two source buckets.
+	BucketReaders struct {
+		client            *storage.Client
+		AdvReader         []io.ReadCloser
+		PubReader         []io.ReadCloser
+		AdvPrefixedBucket *prefixedBucket
+		PubPrefixedBucket *prefixedBucket
+	}
+)
+
+func NewBucketReaders(ctx context.Context, downScopedToken, advURL, pubURL string) (*BucketReaders, error) {
+	if downScopedToken == "" {
+		return nil, errors.New("downscopedToken is required")
+	}
+
+	client, err := storage.NewClient(
+		ctx,
+		option.WithTokenSource(
+			oauth2.StaticTokenSource(
+				&oauth2.Token{
+					AccessToken: downScopedToken,
+				},
+			),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage client: %w", err)
+	}
+
+	advPrefixedBucket, err := bucketFromObjectURL(advURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
+	}
+
+	pubPrefixedBucket, err := bucketFromObjectURL(pubURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
+	}
+
+	bucker := &BucketReaders{
+		client:            client,
+		AdvPrefixedBucket: advPrefixedBucket,
+		PubPrefixedBucket: pubPrefixedBucket,
+	}
+
+	if err := bucker.newObjectReaders(ctx); err != nil {
+		return nil, err
+	}
+
+	return bucker, nil
+}
+
+// newObjectReaders lists the objects specified by the advPrefixedBucket and pubPrefixedBucket and opens a reader for each object,
+// except for the .Completed file.
+func (b *BucketReaders) newObjectReaders(ctx context.Context) error {
+	advReaders, err := readersFromPrefixedBucket(ctx, b.client, b.AdvPrefixedBucket)
+	if err != nil {
+		return err
+	}
+
+	pubReaders, err := readersFromPrefixedBucket(ctx, b.client, b.PubPrefixedBucket)
+	if err != nil {
+		return err
+	}
+
+	b.AdvReader = advReaders
+	b.PubReader = pubReaders
+
+	return nil
+}
+
+func readersFromPrefixedBucket(ctx context.Context, client *storage.Client, pBucket *prefixedBucket) ([]io.ReadCloser, error) {
+	logger := zerolog.Ctx(ctx)
+	query := &storage.Query{Prefix: pBucket.prefix + "/"}
+
+	bucket := client.Bucket(pBucket.bucket)
+
+	it := bucket.Objects(ctx, query)
+	var readers []io.ReadCloser
+
+	for {
+		obj, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		} else if err != nil {
+			logger.Debug().Err(err).Msgf("failed to list objects from source bucket %s", pBucket.prefix)
+			return nil, err
+		}
+
+		if strings.HasSuffix(obj.Name, CompletedFile) || strings.HasSuffix(obj.Name, "/") || obj.Size == 0 {
+			continue
+		}
+
+		r, err := bucket.Object(obj.Name).NewReader(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		readers = append(readers, r)
+	}
+
+	return readers, nil
+}
+
+// Close closes the client and all read writers.
+func (b *BucketReaders) Close() error {
+	for _, rc := range b.AdvReader {
+		if err := rc.Close(); err != nil {
+			return err
+		}
+	}
+
+	for _, rc := range b.PubReader {
+		if err := rc.Close(); err != nil {
+			return err
+		}
+	}
+
+	return b.client.Close()
+}
