@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/internal"
 	"optable-pair-cli/pkg/io"
-	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 )
 
@@ -24,27 +21,6 @@ type (
 func (c *ParticipateCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.PairCleanroomToken == "" {
-		return errors.New("pair clean room token is required")
-	}
-
-	cleanroomToken, err := internal.ParseCleanroomToken(c.PairCleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to parse clean room token: %w", err)
-	}
-
-	saltStr := cleanroomToken.HashSalt
-
-	client, err := internal.NewCleanroomClient(cleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to create clean room client: %w", err)
-	}
-
-	gcsToken, err := client.GetDownScopedToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get down scoped token: %w", err)
-	}
-
 	if c.AdvertiserKey == "" {
 		c.AdvertiserKey = cli.config.keyConfig.Key
 		if c.AdvertiserKey == "" {
@@ -52,9 +28,10 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		}
 	}
 
-	// validate the private key
-	if _, err := keys.NewPAIRPrivateKey(saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("failed to create PAIR private key: %w", err)
+	// instantiate pair config
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	if err != nil {
+		return err
 	}
 
 	fs, err := io.FileReaders(c.Input)
@@ -64,7 +41,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	in := io.MultiReader(fs...)
 
 	// Allow testing with local files.
-	if c.Output != "" && !isGCSBucketURL(c.Output) {
+	if c.Output != "" && !io.IsGCSBucketURL(c.Output) {
 		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("io.FileWriter: %w", err)
@@ -75,35 +52,8 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("NewPAIRIDReadWriter: %w", err)
 		}
 
-		return rw.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
+		return rw.HashEncrypt(ctx, c.NumThreads, pairCfg.salt, pairCfg.key)
 	}
 
-	// get cleanroom output path
-	clrConfig, err := client.GetConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get clean room: %w", err)
-	}
-
-	outputPath := clrConfig.GetAdvertiserTwiceEncryptedDataUrl()
-
-	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithReader(in))
-	if err != nil {
-		return fmt.Errorf("bucket.NewBucket: %w", err)
-	}
-	defer b.Close()
-
-	if len(b.ReadWriters) != 1 {
-		return errors.New("failed to create NewBucket: invalid number of read writers")
-	}
-
-	pairRW, err := pair.NewPAIRIDReadWriter(b.FileReader, b.ReadWriters[0].Writer)
-	if err != nil {
-		return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
-	}
-
-	if err := pairRW.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
-	}
-
-	return b.Complete(ctx)
+	return pairCfg.hashEncryt(ctx, c.Input)
 }

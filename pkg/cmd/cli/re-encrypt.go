@@ -3,15 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"net/url"
 
-	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/internal"
 	"optable-pair-cli/pkg/io"
-	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
-
-	"gocloud.dev/blob/gcsblob"
 )
 
 type (
@@ -27,27 +21,6 @@ type (
 func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.PairCleanroomToken == "" {
-		return errors.New("pair clean room token is required")
-	}
-
-	cleanroomToken, err := internal.ParseCleanroomToken(c.PairCleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to parse clean room token: %w", err)
-	}
-
-	saltStr := cleanroomToken.HashSalt
-
-	client, err := internal.NewCleanroomClient(cleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to create clean room client: %w", err)
-	}
-
-	gcsToken, err := client.GetDownScopedToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get down scoped token: %w", err)
-	}
-
 	if c.AdvertiserKey == "" {
 		c.AdvertiserKey = cli.config.keyConfig.Key
 		if c.AdvertiserKey == "" {
@@ -55,13 +28,14 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		}
 	}
 
-	// validate the private key
-	if _, err := keys.NewPAIRPrivateKey(saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("failed to create PAIR private key: %w", err)
+	// instantiate pair config
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	if err != nil {
+		return err
 	}
 
 	// Allow testing with local files.
-	if c.Input != "" && c.Output != "" && !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
+	if c.Input != "" && c.Output != "" && !io.IsGCSBucketURL(c.Input) && !io.IsGCSBucketURL(c.Output) {
 		in, err := io.FileReaders(c.Input)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
@@ -77,43 +51,8 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
 
-		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
+		return rw.ReEncrypt(ctx, c.NumThreads, pairCfg.salt, pairCfg.key)
 	}
 
-	// Get I/O from cleanroom config
-	clrConfig, err := client.GetConfig(ctx)
-	if err != nil {
-		return err
-	}
-
-	inputPath := clrConfig.GetPublisherTwiceEncryptedDataUrl()
-	outputPath := clrConfig.GetPublisherTripleEncryptedDataUrl()
-
-	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithSourceURL(inputPath))
-	if err != nil {
-		return fmt.Errorf("bucket.NewBucket: %w", err)
-	}
-	defer b.Close()
-
-	for _, rw := range b.ReadWriters {
-		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
-		if err != nil {
-			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
-		}
-
-		if err := pairRW.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey); err != nil {
-			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
-		}
-	}
-
-	return b.Complete(ctx)
-}
-
-func isGCSBucketURL(path string) bool {
-	url, err := url.Parse(path)
-	if err != nil {
-		return false
-	}
-
-	return url.Scheme == gcsblob.Scheme
+	return pairCfg.reEncrypt(ctx)
 }

@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"optable-pair-cli/pkg/bucket"
-	"optable-pair-cli/pkg/internal"
 	"optable-pair-cli/pkg/io"
-	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
 )
 
@@ -25,27 +22,6 @@ type (
 func (c *MatchCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.PairCleanroomToken == "" {
-		return errors.New("pair clean room token is required")
-	}
-
-	cleanroomToken, err := internal.ParseCleanroomToken(c.PairCleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to parse clean room token: %w", err)
-	}
-
-	saltStr := cleanroomToken.HashSalt
-
-	client, err := internal.NewCleanroomClient(cleanroomToken)
-	if err != nil {
-		return fmt.Errorf("failed to create clean room client: %w", err)
-	}
-
-	gcsToken, err := client.GetDownScopedToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get down scoped token: %w", err)
-	}
-
 	if c.AdvertiserKey == "" {
 		c.AdvertiserKey = cli.config.keyConfig.Key
 		if c.AdvertiserKey == "" {
@@ -53,13 +29,13 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 		}
 	}
 
-	// validate the private key
-	if _, err := keys.NewPAIRPrivateKey(saltStr, c.AdvertiserKey); err != nil {
-		return fmt.Errorf("failed to create PAIR private key: %w", err)
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	if err != nil {
+		return err
 	}
 
 	// Allow testing with local files.
-	if c.AdvertiserInput != "" && c.PublisherInput != "" && !isGCSBucketURL(c.AdvertiserInput) && !isGCSBucketURL(c.PublisherInput) {
+	if c.AdvertiserInput != "" && c.PublisherInput != "" && !io.IsGCSBucketURL(c.AdvertiserInput) && !io.IsGCSBucketURL(c.PublisherInput) {
 		adv, err := io.FileReaders(c.AdvertiserInput)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
@@ -75,30 +51,10 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 			return fmt.Errorf("pair.NewMatcher: %w", err)
 		}
 
-		return matcher.Match(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
+		return matcher.Match(ctx, c.NumThreads, pairCfg.salt, pairCfg.key)
 	}
 
-	// Get I/O from cleanroom configs
-	clrConfig, err := client.GetConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("client.GetCleanroom: %w", err)
-	}
-
-	advPath := clrConfig.GetAdvertiserTripleEncryptedDataUrl()
-	pubPath := clrConfig.GetPublisherTripleEncryptedDataUrl()
-
-	b, err := bucket.NewBucketReaders(ctx, gcsToken, advPath, pubPath)
-	if err != nil {
-		return fmt.Errorf("bucket.NewBucket: %w", err)
-	}
-	defer b.Close()
-
-	matcher, err := pair.NewMatcher(readersFromReadClosers(b.AdvReader), readersFromReadClosers(b.PubReader), c.Output)
-	if err != nil {
-		return fmt.Errorf("pair.NewMatcher: %w", err)
-	}
-
-	return matcher.Match(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
+	return pairCfg.match(ctx, c.Output)
 }
 
 func readersFromReadClosers(rs []io.ReadCloser) []io.Reader {
