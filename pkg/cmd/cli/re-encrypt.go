@@ -61,7 +61,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	}
 
 	// Allow testing with local files.
-	if !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
+	if c.Input != "" && c.Output != "" && !isGCSBucketURL(c.Input) && !isGCSBucketURL(c.Output) {
 		in, err := io.FileReaders(c.Input)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)
@@ -80,11 +80,15 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	if !isGCSBucketURL(c.Output) {
-		return errors.New("output must be a GCS bucket URL")
+	cleanroom, err := client.GetCleanroom(ctx, false)
+	if err != nil {
+		return fmt.Errorf("failed to get clean room: %w", err)
 	}
 
-	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, c.Output, bucket.WithSourceURL(c.Input))
+	inputPath := cleanroom.GetConfig().GetPairConfig().GetPublisherTwiceEncryptedDataUrl()
+	outputPath := cleanroom.GetConfig().GetPairConfig().GetPublisherTripleEncryptedDataUrl()
+
+	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithSourceURL(inputPath))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}

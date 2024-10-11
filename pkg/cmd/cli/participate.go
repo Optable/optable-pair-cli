@@ -64,7 +64,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	in := io.MultiReader(fs...)
 
 	// Allow testing with local files.
-	if !isGCSBucketURL(c.Output) {
+	if c.Output != "" && !isGCSBucketURL(c.Output) {
 		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("io.FileWriter: %w", err)
@@ -78,7 +78,15 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return rw.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, c.Output, bucket.WithReader(in))
+	// get cleanroom output path
+	cleanroom, err := client.GetCleanroom(ctx, false)
+	if err != nil {
+		return fmt.Errorf("failed to get clean room: %w", err)
+	}
+
+	outputPath := cleanroom.GetConfig().GetPairConfig().GetAdvertiserTwiceEncryptedDataUrl()
+
+	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
