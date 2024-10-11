@@ -24,6 +24,16 @@ type Cli struct {
 	Match       MatchCmd       `cmd:"" help:"Match publisher's PAIR IDs with advertiser's PAIR IDs."`
 }
 
+func (c *MatchCmd) Help() string {
+	return `
+This operation produces the match rate of this PAIR clean room operation,
+and output the list of decrypted and matched PAIR IDs.
+
+Please be aware that this operation is for demo purposes only for
+resonable data size.
+`
+}
+
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
 	cliCtx := &CliContext{
 		ctx:    NewLogger("pair", c.Verbose).WithContext(context.Background()),
