@@ -78,13 +78,14 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 		return matcher.Match(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	cleanroom, err := client.GetCleanroom(ctx, false)
+	// Get I/O from cleanroom configs
+	clrConfig, err := client.GetConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("client.GetCleanroom: %w", err)
 	}
 
-	advPath := cleanroom.GetConfig().GetPairConfig().GetAdvertiserTripleEncryptedDataUrl()
-	pubPath := cleanroom.GetConfig().GetPairConfig().GetPublisherTripleEncryptedDataUrl()
+	advPath := clrConfig.GetAdvertiserTripleEncryptedDataUrl()
+	pubPath := clrConfig.GetPublisherTripleEncryptedDataUrl()
 
 	b, err := bucket.NewBucketReaders(ctx, gcsToken, advPath, pubPath)
 	if err != nil {

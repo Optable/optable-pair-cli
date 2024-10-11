@@ -79,12 +79,12 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	}
 
 	// get cleanroom output path
-	cleanroom, err := client.GetCleanroom(ctx, false)
+	clrConfig, err := client.GetConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get clean room: %w", err)
 	}
 
-	outputPath := cleanroom.GetConfig().GetPairConfig().GetAdvertiserTwiceEncryptedDataUrl()
+	outputPath := clrConfig.GetAdvertiserTwiceEncryptedDataUrl()
 
 	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithReader(in))
 	if err != nil {

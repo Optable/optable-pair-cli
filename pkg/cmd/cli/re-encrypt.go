@@ -80,13 +80,14 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 		return rw.ReEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	cleanroom, err := client.GetCleanroom(ctx, false)
+	// Get I/O from cleanroom config
+	clrConfig, err := client.GetConfig(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get clean room: %w", err)
+		return err
 	}
 
-	inputPath := cleanroom.GetConfig().GetPairConfig().GetPublisherTwiceEncryptedDataUrl()
-	outputPath := cleanroom.GetConfig().GetPairConfig().GetPublisherTripleEncryptedDataUrl()
+	inputPath := clrConfig.GetPublisherTwiceEncryptedDataUrl()
+	outputPath := clrConfig.GetPublisherTripleEncryptedDataUrl()
 
 	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithSourceURL(inputPath))
 	if err != nil {

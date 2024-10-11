@@ -87,6 +87,15 @@ func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error
 	return "", fmt.Errorf("token not found")
 }
 
+func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_PairConfig, error) {
+	cleanroom, err := c.GetCleanroom(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return cleanroom.GetConfig().GetPairConfig(), nil
+}
+
 func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanroom, error) {
 	msg, err := protojson.Marshal(req)
 	if err != nil {
