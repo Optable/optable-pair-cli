@@ -223,7 +223,7 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 
 	logger.Debug().Msgf("Match: read %d advertiser and %d publisher IDs, written %d PAIR IDs in %s", advRead, m.reader.read, m.writer.written.Load(), time.Since(startTime))
 
-	logger.Info().Msgf("Matched %.2f percent triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", int(m.writer.written.Load())/advRead, m.writer.path)
+	logger.Info().Msgf("Matched %.2f percent triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", float64(m.writer.written.Load())/float64(advRead)*100, m.writer.path)
 
 	return m.writer.Close()
 }
