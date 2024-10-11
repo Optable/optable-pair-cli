@@ -111,6 +111,8 @@ func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL str
 		if err := b.newObjectReadWriteCloser(ctx); err != nil {
 			return nil, fmt.Errorf("failed to create read writers: %w", err)
 		}
+
+		return b, nil
 	}
 
 	if reader := bucketOption.reader; reader != nil {

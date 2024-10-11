@@ -1,19 +1,22 @@
 module optable-pair-cli
 
-go 1.23.0
+go 1.23.2
 
 require (
 	cloud.google.com/go/storage v1.43.0
 	github.com/adrg/xdg v0.5.0
 	github.com/alecthomas/kong v1.2.1
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/uuid v1.6.0
 	github.com/gtank/ristretto255 v0.1.2
-	github.com/optable/match v1.3.0
+	github.com/optable/match v1.4.0
+	github.com/optable/match-api/v2 v2.3.0
 	github.com/rs/zerolog v1.33.0
 	gocloud.dev v0.39.0
 	golang.org/x/oauth2 v0.22.0
 	golang.org/x/sync v0.8.0
 	google.golang.org/api v0.191.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
@@ -48,5 +51,4 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240812133136-8ffd90a71988 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240812133136-8ffd90a71988 // indirect
 	google.golang.org/grpc v1.65.0 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
 )

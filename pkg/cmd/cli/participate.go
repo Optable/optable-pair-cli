@@ -1,12 +1,11 @@
 package cli
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
 	"optable-pair-cli/pkg/bucket"
+	"optable-pair-cli/pkg/internal"
 	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
@@ -15,12 +14,10 @@ import (
 type (
 	ParticipateCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		// TODO(Justin): read token from GetCleanroom using the PairCleanroomToken.
-		GCSToken      string `arg:"" help:"The GCS token to use for the operation."`
-		Input         string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If given a directory, all files in the directory will be processed."`
-		AdvertiserKey string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		Output        string `cmd:"" short:"o" help:"The output file to write the advertiser data to, default to stdout."`
-		NumThreads    int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
+		Input              string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If given a directory, all files in the directory will be processed."`
+		AdvertiserKey      string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		Output             string `cmd:"" short:"o" help:"The output file to write the advertiser data to, default to stdout."`
+		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
 	}
 )
 
@@ -31,20 +28,29 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return errors.New("pair clean room token is required")
 	}
 
+	cleanroomToken, err := internal.ParseCleanroomToken(c.PairCleanroomToken)
+	if err != nil {
+		return fmt.Errorf("failed to parse clean room token: %w", err)
+	}
+
+	saltStr := cleanroomToken.HashSalt
+
+	client, err := internal.NewCleanroomClient(cleanroomToken)
+	if err != nil {
+		return fmt.Errorf("failed to create clean room client: %w", err)
+	}
+
+	gcsToken, err := client.GetDownScopedToken(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get down scoped token: %w", err)
+	}
+
 	if c.AdvertiserKey == "" {
 		c.AdvertiserKey = cli.config.keyConfig.Key
 		if c.AdvertiserKey == "" {
 			return errors.New("advertiser key is required, please either provide one or generate one.")
 		}
 	}
-
-	// TODO(Justin): read salt from token.
-	salt := make([]byte, 32)
-	if _, err := rand.Read(salt); err != nil {
-		return fmt.Errorf("failed to generate salt: %w", err)
-	}
-
-	saltStr := base64.StdEncoding.EncodeToString(salt)
 
 	// validate the private key
 	if _, err := keys.NewPAIRPrivateKey(saltStr, c.AdvertiserKey); err != nil {
@@ -58,9 +64,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	in := io.MultiReader(fs...)
 
 	// Allow testing with local files.
-	if !isGCSBucketURL(c.Output) {
-
-		// TODO(Justin): write to GCS bucket url from Cleanroom passed by token.
+	if c.Output != "" && !isGCSBucketURL(c.Output) {
 		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("io.FileWriter: %w", err)
@@ -74,7 +78,15 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return rw.HashEncrypt(ctx, c.NumThreads, saltStr, c.AdvertiserKey)
 	}
 
-	b, err := bucket.NewBucketReadWriter(ctx, c.GCSToken, c.Output, bucket.WithReader(in))
+	// get cleanroom output path
+	clrConfig, err := client.GetConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get clean room: %w", err)
+	}
+
+	outputPath := clrConfig.GetAdvertiserTwiceEncryptedDataUrl()
+
+	b, err := bucket.NewBucketReadWriter(ctx, gcsToken, outputPath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
