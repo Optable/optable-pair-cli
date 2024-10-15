@@ -99,10 +99,17 @@ func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_P
 }
 
 func (c *CleanroomClient) ReadyForMatch(ctx context.Context) error {
-	return c.WaitForState(ctx, v1.Cleanroom_Participant_DATA_TRANSFORMED)
+	return c.WaitForState(
+		ctx,
+		[]v1.Cleanroom_Participant_State{
+			v1.Cleanroom_Participant_DATA_TRANSFORMED,
+			v1.Cleanroom_Participant_RUNNING,
+			v1.Cleanroom_Participant_SUCCEEDED,
+		},
+	)
 }
 
-func (c *CleanroomClient) WaitForState(ctx context.Context, state v1.Cleanroom_Participant_State) error {
+func (c *CleanroomClient) WaitForState(ctx context.Context, states []v1.Cleanroom_Participant_State) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -133,8 +140,10 @@ func (c *CleanroomClient) WaitForState(ctx context.Context, state v1.Cleanroom_P
 			}
 		}
 
-		if publisher.GetState() == state {
-			return nil
+		for _, state := range states {
+			if publisher.GetState() == state {
+				return nil
+			}
 		}
 	}
 }
