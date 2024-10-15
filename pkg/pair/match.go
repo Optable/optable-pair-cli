@@ -23,6 +23,7 @@ type (
 		reader      *pairIDReader
 		writer      *writer
 		intersected chan []byte
+		advRead     atomic.Uint64
 		hashMap     map[string]struct{}
 	}
 
@@ -75,6 +76,7 @@ func NewMatcher(adv, pub []io.Reader, out string) (*matcher, error) {
 					}
 
 					// normalize and store
+					m.advRead.Add(1)
 					maps[i][record[0]] = struct{}{}
 				}
 			}
@@ -145,7 +147,6 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 		logger        = zerolog.Ctx(ctx)
 		startTime     = time.Now()
 		maxNumWorkers = runtime.GOMAXPROCS(0)
-		advRead       = len(m.hashMap)
 	)
 
 	if numWorkers > maxNumWorkers {
@@ -172,6 +173,9 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 			default:
 				for _, id := range batchedIDs {
 					if _, ok := m.hashMap[string(id)]; ok {
+						// remove from map, so it won't be matched again
+						delete(m.hashMap, string(id))
+						// send to consumer
 						m.intersected <- id
 					}
 				}
@@ -221,9 +225,9 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 		return m.reader.err
 	}
 
-	logger.Debug().Msgf("Match: read %d advertiser and %d publisher IDs, written %d PAIR IDs in %s", advRead, m.reader.read, m.writer.written.Load(), time.Since(startTime))
+	logger.Debug().Msgf("Match: read %d advertiser and %d publisher IDs, written %d PAIR IDs in %s", m.advRead.Load(), m.reader.read, m.writer.written.Load(), time.Since(startTime))
 
-	logger.Info().Msgf("Matched %.2f percent triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", normalizedMatchRate(int(m.writer.written.Load()), advRead), m.writer.path)
+	logger.Info().Msgf("Matched %.2f percent triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", normalizedMatchRate(int(m.writer.written.Load()), int(m.advRead.Load())), m.writer.path)
 
 	return m.writer.Close()
 }
