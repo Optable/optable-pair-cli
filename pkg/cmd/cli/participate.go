@@ -41,7 +41,7 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 	in := io.MultiReader(fs...)
 
 	// Allow testing with local files.
-	if c.Output != "" && !io.IsGCSBucketURL(c.Output) {
+	if !io.IsGCSBucketURL(c.Output) {
 		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("io.FileWriter: %w", err)
