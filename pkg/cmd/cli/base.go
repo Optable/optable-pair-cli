@@ -22,6 +22,7 @@ type Cli struct {
 	Participate ParticipateCmd `cmd:"" hidden:"" help:"Participate in the PAIR operation by contributing advertiser hashed and encrypted data."`
 	ReEncrypt   ReEncryptCmd   `cmd:"" hidden:"" help:"Re-encrypt publisher's PAIR IDs with the advertiser key."`
 	Match       MatchCmd       `cmd:"" help:"Match publisher's PAIR IDs with advertiser's PAIR IDs."`
+	Run         RunCmd         `cmd:"" help:"Run the PAIR clean room operation."`
 }
 
 func (c *MatchCmd) Help() string {

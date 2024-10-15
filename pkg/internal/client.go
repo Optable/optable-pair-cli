@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const waitTime = 1 * time.Hour
+
 type (
 	CleanroomClient struct {
 		client        *http.Client
@@ -94,6 +96,56 @@ func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_P
 	}
 
 	return cleanroom.GetConfig().GetPairConfig(), nil
+}
+
+func (c *CleanroomClient) ReadyForMatch(ctx context.Context) error {
+	return c.WaitForState(
+		ctx,
+		[]v1.Cleanroom_Participant_State{
+			v1.Cleanroom_Participant_DATA_TRANSFORMED,
+			v1.Cleanroom_Participant_RUNNING,
+			v1.Cleanroom_Participant_SUCCEEDED,
+		},
+	)
+}
+
+func (c *CleanroomClient) WaitForState(ctx context.Context, states []v1.Cleanroom_Participant_State) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(1 * time.Hour)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("timeout after %v", waitTime)
+		case <-ticker.C:
+			// check state
+		}
+
+		cleanroom, err := c.GetCleanroom(ctx, false)
+		if err != nil {
+			return err
+		}
+
+		participants := cleanroom.GetParticipants()
+		var publisher *v1.Cleanroom_Participant
+		for _, p := range participants {
+			if p.GetRole() == v1.Cleanroom_Participant_PUBLISHER {
+				publisher = p
+				break
+			}
+		}
+
+		for _, state := range states {
+			if publisher.GetState() == state {
+				return nil
+			}
+		}
+	}
 }
 
 func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanroom, error) {

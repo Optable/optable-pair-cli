@@ -3,8 +3,11 @@ package io
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+
+	"gocloud.dev/blob/gcsblob"
 )
 
 type (
@@ -74,4 +77,13 @@ func IsDir(path string) (bool, error) {
 	}
 
 	return fi.IsDir(), nil
+}
+
+func IsGCSBucketURL(path string) bool {
+	url, err := url.Parse(path)
+	if err != nil {
+		return false
+	}
+
+	return url.Scheme == gcsblob.Scheme
 }

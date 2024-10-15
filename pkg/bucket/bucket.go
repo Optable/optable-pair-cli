@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/url"
 	"strings"
 
@@ -239,5 +240,11 @@ func objectPathWithPrefix(objectName string, prefix string) string {
 
 func blobFromObjectName(objectName string) string {
 	split := strings.Split(objectName, "/")
-	return split[len(split)-1]
+	obj := split[len(split)-1]
+	split = strings.Split(obj, ".")
+	return fmt.Sprintf("%s-%s.%s", split[0], shortHex(), split[1])
+}
+
+func shortHex() string {
+	return fmt.Sprintf("%08x", rand.Int32())
 }
