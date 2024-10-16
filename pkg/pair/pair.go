@@ -8,6 +8,7 @@ import (
 	"io"
 	"optable-pair-cli/pkg/keys"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -30,7 +31,7 @@ type (
 
 	pairIDReader struct {
 		r         *csv.Reader
-		read      int
+		read      atomic.Uint64
 		batchSize int
 		batch     chan [][]byte
 		err       error
@@ -93,7 +94,7 @@ func readPAIRIDs(ctx context.Context, p *pairIDReader) {
 			// Write the last batch
 			if len(ids) > 0 {
 				p.batch <- ids
-				p.read += len(ids)
+				p.read.Add(uint64(len(ids)))
 			}
 
 			return
@@ -116,7 +117,7 @@ func readPAIRIDs(ctx context.Context, p *pairIDReader) {
 				// reset the batch
 				ids = make([][]byte, 0, batchSize)
 				batch = 0
-				p.read += batchSize
+				p.read.Add(uint64(batchSize))
 			}
 		}
 	}
@@ -163,7 +164,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			}
 			close(done)
 
-			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read, p.written, time.Since(startTime))
+			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read.Load(), p.written, time.Since(startTime))
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
