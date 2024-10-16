@@ -10,7 +10,7 @@ import (
 const description = `
 Optable PAIR CLI interface
 
-pair is a command line interface for interacting with an Optable DCN from the command line
+pair is a tool for interacting with an Optable DCN from the command line
 to perform a PAIR (Publisher Advertiser Identity Reconciliation) operation
 in a dual data clean room environment, where Optable DCN represents
 the publisher data clean room operator.
