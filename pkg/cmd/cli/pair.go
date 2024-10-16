@@ -71,30 +71,42 @@ func NewPAIRConfig(ctx context.Context, token string, threads int, key string) (
 func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data.")
-
 	fs, err := io.FileReaders(input)
 	if err != nil {
 		return fmt.Errorf("io.FileReaders: %w", err)
 	}
 	in := io.MultiReader(fs...)
+
+	writeDataObjects := func() error {
+		b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
+		if err != nil {
+			return fmt.Errorf("bucket.NewBucket: %w", err)
+		}
+		defer b.Close()
+
+		if len(b.ReadWriters) != 1 {
+			return errors.New("failed to create NewBucket: invalid number of read writers")
+		}
+
+		pairRW, err := pair.NewPAIRIDReadWriter(b.FileReader, b.ReadWriters[0].Writer)
+		if err != nil {
+			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
+		}
+
+		if err := pairRW.HashEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
+			return fmt.Errorf("pairRW.HashEncrypt: %w", err)
+		}
+		return nil
+	}
+	if err := writeDataObjects(); err != nil {
+		return errors.New("writeDataObjects")
+	}
+
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer b.Close()
-
-	if len(b.ReadWriters) != 1 {
-		return errors.New("failed to create NewBucket: invalid number of read writers")
-	}
-
-	pairRW, err := pair.NewPAIRIDReadWriter(b.FileReader, b.ReadWriters[0].Writer)
-	if err != nil {
-		return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
-	}
-
-	if err := pairRW.HashEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
-		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
-	}
 
 	if err := b.Complete(ctx); err != nil {
 		return fmt.Errorf("bucket.Complete: %w", err)
@@ -109,22 +121,33 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
+	writeDataObjects := func() error {
+		b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.pubTriplePath, bucket.WithSourceURL(c.pubTwicePath))
+		if err != nil {
+			return fmt.Errorf("bucket.NewBucket: %w", err)
+		}
+		defer b.Close()
+
+		for _, rw := range b.ReadWriters {
+			pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
+			if err != nil {
+				return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
+			}
+
+			if err := pairRW.ReEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
+				return fmt.Errorf("pairRW.ReEncrypt: %w", err)
+			}
+		}
+		return nil
+	}
+	if err := writeDataObjects(); err != nil {
+		return errors.New("writeDataObjects")
+	}
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.pubTriplePath, bucket.WithSourceURL(c.pubTwicePath))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer b.Close()
-
-	for _, rw := range b.ReadWriters {
-		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
-		if err != nil {
-			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
-		}
-
-		if err := pairRW.ReEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
-			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
-		}
-	}
 
 	if err := b.Complete(ctx); err != nil {
 		return fmt.Errorf("bucket.Complete: %w", err)
