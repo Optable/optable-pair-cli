@@ -225,7 +225,7 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 		return m.reader.err
 	}
 
-	logger.Debug().Msgf("Match: read %d advertiser and %d publisher IDs, written %d PAIR IDs in %s", m.advRead.Load(), m.reader.read, m.writer.written.Load(), time.Since(startTime))
+	logger.Debug().Msgf("Match: read %d advertiser and %d publisher IDs, written %d PAIR IDs in %s", m.advRead.Load(), m.reader.read.Load(), m.writer.written.Load(), time.Since(startTime))
 
 	logger.Info().Msgf("Matched %.2f percent triple encrypted PAIR IDs, decrypted PAIR IDs are written to %s", normalizedMatchRate(int(m.writer.written.Load()), int(m.advRead.Load())), m.writer.path)
 
