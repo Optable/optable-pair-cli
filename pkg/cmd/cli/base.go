@@ -14,7 +14,6 @@ type CliContext struct {
 type Cli struct {
 	Verbose int `short:"v" type:"counter" help:"Enable debug mode."`
 
-	Token   string     `placeholder:"<token>" help:"Optable Auth Token"`
 	Version VersionCmd `cmd:"" help:"Print version"`
 
 	GenerateKey GenerateKeyCmd `cmd:"" help:"Generate a new advertiser private key."`

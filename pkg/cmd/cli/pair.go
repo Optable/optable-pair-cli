@@ -77,11 +77,29 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("io.FileReaders: %w", err)
 	}
 	in := io.MultiReader(fs...)
+
+	// defer statements are executed in Last In First Out order, so we will write the completed file last.
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer func() {
+		if err := bucketCompleter.Complete(ctx); err != nil {
+			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
+			return
+		}
+	}()
+
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
-	defer b.Close()
+	defer func() {
+		if err := b.Close(); err != nil {
+			logger.Error().Err(err).Msg("failed to close bucket")
+			return
+		}
+	}()
 
 	if len(b.ReadWriters) != 1 {
 		return errors.New("failed to create NewBucket: invalid number of read writers")
@@ -96,10 +114,6 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
 	}
 
-	if err := b.Complete(ctx); err != nil {
-		return fmt.Errorf("bucket.Complete: %w", err)
-	}
-
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data completed.")
 
 	return nil
@@ -109,11 +123,28 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
+	// defer statements are executed in Last In First Out order, so we will write the completed file last.
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.pubTriplePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer func() {
+		if err := bucketCompleter.Complete(ctx); err != nil {
+			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
+			return
+		}
+	}()
+
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.pubTriplePath, bucket.WithSourceURL(c.pubTwicePath))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
-	defer b.Close()
+	defer func() {
+		if err := b.Close(); err != nil {
+			logger.Error().Err(err).Msg("failed to close bucket")
+			return
+		}
+	}()
 
 	for _, rw := range b.ReadWriters {
 		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
@@ -124,10 +155,6 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 		if err := pairRW.ReEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
 			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
 		}
-	}
-
-	if err := b.Complete(ctx); err != nil {
-		return fmt.Errorf("bucket.Complete: %w", err)
 	}
 
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs completed.")
