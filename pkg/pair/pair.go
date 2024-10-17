@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"optable-pair-cli/pkg/keys"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +27,7 @@ type (
 		reader    *pairIDReader
 		w         *csv.Writer
 		writeLock *sync.Mutex
-		written   int
+		written   atomic.Uint64
 	}
 
 	pairIDReader struct {
@@ -44,6 +45,7 @@ type PAIROperation uint8
 const (
 	PAIROperationHashEncrypt PAIROperation = iota
 	PAIROperationReEncrypt
+	PAIROperationDecrypt
 )
 
 func (p PAIROperation) String() string {
@@ -131,22 +133,28 @@ func (p *pairIDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, 
 	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationReEncrypt)
 }
 
+func (p *pairIDReadWriter) Decrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
+	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationReEncrypt)
+}
+
 func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privateKey string, op PAIROperation) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
 	defer cancel()
 
 	var (
-		logger    = zerolog.Ctx(ctx)
-		startTime = time.Now()
-		done      = make(chan struct{}, 1)
-		errChan   = make(chan error, 1)
-		once      sync.Once
+		logger     = zerolog.Ctx(ctx)
+		startTime  = time.Now()
+		done       = make(chan struct{}, 1)
+		errChan    = make(chan error, 1)
+		once       sync.Once
+		maxWorkers = runtime.GOMAXPROCS(0)
 	)
 
 	// Limit the number of workers to 8
-	if numWorkers > 8 {
-		numWorkers = 8
+	if numWorkers > maxWorkers {
+		numWorkers = maxWorkers
+		logger.Warn().Msgf("Number of workers is limited to %d", numWorkers)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -164,7 +172,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 			}
 			close(done)
 
-			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read.Load(), p.written, time.Since(startTime))
+			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read.Load(), p.written.Load(), time.Since(startTime))
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
@@ -183,6 +191,8 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 					do = pk.Encrypt
 				case PAIROperationReEncrypt:
 					do = pk.ReEncrypt
+				case PAIROperationDecrypt:
+					do = pk.Decrypt
 				default:
 					err := errors.New("invalid operation")
 					errChan <- err
@@ -232,7 +242,7 @@ func (p *pairIDReadWriter) operate(do func([]byte) ([]byte, error)) error {
 	if err := p.w.WriteAll(records); err != nil {
 		return fmt.Errorf("w.WriteAll: %w", err)
 	}
-	p.written += len(records)
+	p.written.Add(uint64(len(records)))
 
 	if err := p.w.Error(); err != nil {
 		return fmt.Errorf("p.w.Error: %w", err)

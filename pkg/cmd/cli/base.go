@@ -23,16 +23,7 @@ type Cli struct {
 	ReEncrypt   ReEncryptCmd   `cmd:"" hidden:"" help:"Re-encrypt publisher's PAIR IDs with the advertiser key."`
 	Match       MatchCmd       `cmd:"" help:"Match publisher's PAIR IDs with advertiser's PAIR IDs."`
 	Run         RunCmd         `cmd:"" help:"Run the PAIR clean room operation."`
-}
-
-func (c *MatchCmd) Help() string {
-	return `
-This operation produces the match rate of this PAIR clean room operation,
-and output the list of decrypted and matched PAIR IDs.
-
-Please be aware that this operation is for demo purposes only for
-resonable data size.
-`
+	Decrypt     DecryptCmd     `cmd:"" help:"Decrypt the triple encrypted PAIR IDs using the advertiser private key."`
 }
 
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
