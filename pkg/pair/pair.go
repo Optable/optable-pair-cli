@@ -54,6 +54,8 @@ func (p PAIROperation) String() string {
 		return "HashEncrypt"
 	case PAIROperationReEncrypt:
 		return "ReEncrypt"
+	case PAIROperationDecrypt:
+		return "Decrypt"
 	default:
 		return "Unknown"
 	}
@@ -134,7 +136,7 @@ func (p *pairIDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, 
 }
 
 func (p *pairIDReadWriter) Decrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
-	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationReEncrypt)
+	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationDecrypt)
 }
 
 func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privateKey string, op PAIROperation) error {
