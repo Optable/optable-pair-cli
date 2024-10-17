@@ -70,6 +70,8 @@ func WithSourceURL(srcURL string) BucketOption {
 	}
 }
 
+// NewBucketCompleter creates a new BucketCompleter object which is used to signal that the transfer is complete.
+// Caller needs to call Close() on the returned BucketCompleter object to ensure
 func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL string) (*BucketCompleter, error) {
 	if downscopedToken == "" {
 		return nil, ErrTokenRequired
@@ -100,6 +102,8 @@ func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL stri
 	}, nil
 }
 
+// Complete writes a .Completed file to the destination bucket to signal that the transfer is complete.
+// It then closes the client.
 func (b *BucketCompleter) Complete(ctx context.Context) error {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
@@ -111,10 +115,6 @@ func (b *BucketCompleter) Complete(ctx context.Context) error {
 		return fmt.Errorf("failed to close completed file: %w", err)
 	}
 
-	return nil
-}
-
-func (b *BucketCompleter) Close() error {
 	return b.client.Close()
 }
 

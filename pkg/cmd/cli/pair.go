@@ -78,6 +78,13 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	}
 	in := io.MultiReader(fs...)
 
+	// defer statements are executed in Last In First Out order, so we will write the completed file last.
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer bucketCompleter.Complete(ctx)
+
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
@@ -97,16 +104,6 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
 	}
 
-	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
-	if err != nil {
-		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
-	}
-	defer bucketCompleter.Close()
-
-	if err := bucketCompleter.Complete(ctx); err != nil {
-		return fmt.Errorf("bucket.Complete: %w", err)
-	}
-
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data completed.")
 
 	return nil
@@ -115,6 +112,13 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
+
+	// defer statements are executed in Last In First Out order, so we will write the completed file last.
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer bucketCompleter.Complete(ctx)
 
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.pubTriplePath, bucket.WithSourceURL(c.pubTwicePath))
 	if err != nil {
@@ -131,16 +135,6 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 		if err := pairRW.ReEncrypt(ctx, c.threads, c.salt, c.key); err != nil {
 			return fmt.Errorf("pairRW.ReEncrypt: %w", err)
 		}
-	}
-
-	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
-	if err != nil {
-		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
-	}
-	defer bucketCompleter.Close()
-
-	if err := bucketCompleter.Complete(ctx); err != nil {
-		return fmt.Errorf("bucket.Complete: %w", err)
 	}
 
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs completed.")
