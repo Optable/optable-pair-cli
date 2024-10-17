@@ -30,6 +30,11 @@ type (
 		ReadWriters       []*ReadWriteCloser
 	}
 
+	BucketCompleter struct {
+		client            *storage.Client
+		dstPrefixedBucket *prefixedBucket
+	}
+
 	prefixedBucket struct {
 		bucket string
 		prefix string
@@ -63,6 +68,54 @@ func WithSourceURL(srcURL string) BucketOption {
 	return func(o *bucketOptions) {
 		o.sourceURL = srcURL
 	}
+}
+
+func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL string) (*BucketCompleter, error) {
+	if downscopedToken == "" {
+		return nil, ErrTokenRequired
+	}
+
+	client, err := storage.NewClient(
+		ctx,
+		option.WithTokenSource(
+			oauth2.StaticTokenSource(
+				&oauth2.Token{
+					AccessToken: downscopedToken,
+				},
+			),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage client: %w", err)
+	}
+
+	dstPrefixedBucket, err := bucketFromObjectURL(dstURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
+	}
+
+	return &BucketCompleter{
+		client:            client,
+		dstPrefixedBucket: dstPrefixedBucket,
+	}, nil
+}
+
+func (b *BucketCompleter) Complete(ctx context.Context) error {
+	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
+	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
+	if _, err := completedWriter.Write([]byte{}); err != nil {
+		return fmt.Errorf("failed to write completed file: %w", err)
+	}
+
+	if err := completedWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close completed file: %w", err)
+	}
+
+	return nil
+}
+
+func (b *BucketCompleter) Close() error {
+	return b.client.Close()
 }
 
 // NewBucketReadWriter creates a new Bucket object and opens readers and writers for the specified source and destination URLs.
@@ -200,21 +253,6 @@ func (b *BucketReadWriter) newObjectWriteCloser(ctx context.Context) (*ReadWrite
 		name:   CompletedFile,
 		Writer: writer,
 	}, nil
-}
-
-// Complete writes a .Completed file to the destination bucket to signal that the transfer is complete.
-func (b *BucketReadWriter) Complete(ctx context.Context) error {
-	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
-	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
-	if _, err := completedWriter.Write([]byte{}); err != nil {
-		return fmt.Errorf("failed to write completed file: %w", err)
-	}
-
-	if err := completedWriter.Close(); err != nil {
-		return fmt.Errorf("failed to close completed file: %w", err)
-	}
-
-	return nil
 }
 
 // Close closes the client and all read writers.

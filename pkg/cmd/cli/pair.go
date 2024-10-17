@@ -77,6 +77,7 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("io.FileReaders: %w", err)
 	}
 	in := io.MultiReader(fs...)
+
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
@@ -96,7 +97,13 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("pairRW.HashEncrypt: %w", err)
 	}
 
-	if err := b.Complete(ctx); err != nil {
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer bucketCompleter.Close()
+
+	if err := bucketCompleter.Complete(ctx); err != nil {
 		return fmt.Errorf("bucket.Complete: %w", err)
 	}
 
@@ -126,7 +133,13 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 		}
 	}
 
-	if err := b.Complete(ctx); err != nil {
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+	defer bucketCompleter.Close()
+
+	if err := bucketCompleter.Complete(ctx); err != nil {
 		return fmt.Errorf("bucket.Complete: %w", err)
 	}
 
