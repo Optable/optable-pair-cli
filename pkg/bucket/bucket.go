@@ -248,7 +248,7 @@ func (b *BucketReadWriter) newObjectReadWriteCloser(ctx context.Context) error {
 // newObjectWriteCloser creates a new writer for the destination bucket.
 func (b *BucketReadWriter) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, error) {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
-	writer := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, "data.csv")).NewWriter(ctx)
+	writer := dstBucket.Object(fmt.Sprintf("%s/data_%s.csv", b.dstPrefixedBucket.prefix, shortHex())).NewWriter(ctx)
 	return &ReadWriteCloser{
 		name:   CompletedFile,
 		Writer: writer,

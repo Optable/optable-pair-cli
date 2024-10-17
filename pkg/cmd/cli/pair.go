@@ -83,13 +83,23 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
-	defer bucketCompleter.Complete(ctx)
+	defer func() {
+		if err := bucketCompleter.Complete(ctx); err != nil {
+			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
+			return
+		}
+	}()
 
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
-	defer b.Close()
+	defer func() {
+		if err := b.Close(); err != nil {
+			logger.Error().Err(err).Msg("failed to close bucket")
+			return
+		}
+	}()
 
 	if len(b.ReadWriters) != 1 {
 		return errors.New("failed to create NewBucket: invalid number of read writers")
@@ -118,13 +128,23 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
-	defer bucketCompleter.Complete(ctx)
+	defer func() {
+		if err := bucketCompleter.Complete(ctx); err != nil {
+			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
+			return
+		}
+	}()
 
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.pubTriplePath, bucket.WithSourceURL(c.pubTwicePath))
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
-	defer b.Close()
+	defer func() {
+		if err := b.Close(); err != nil {
+			logger.Error().Err(err).Msg("failed to close bucket")
+			return
+		}
+	}()
 
 	for _, rw := range b.ReadWriters {
 		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
