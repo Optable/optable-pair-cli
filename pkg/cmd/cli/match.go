@@ -11,13 +11,23 @@ import (
 type (
 	MatchCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserInput    string `cmd:"" short:"a" help:"The GCS bucket URL containing objects of advertiser's triple encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
-		PublisherInput     string `cmd:"" short:"p" help:"The GCS bucket URL containing objects of publisher's triple encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
+		AdvertiserInput    string `cmd:"" short:"a" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
+		PublisherInput     string `cmd:"" short:"p" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
 		Output             string `cmd:"" short:"o" help:"The file path to write the decrypted and matched double encrypted PAIR IDs. If given a directory, the output will be files each containing up to 1 million IDs, if given a file, it will contain all the IDs. If none are provided, it will write to stdout."`
 		AdvertiserKey      string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
 		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
 	}
 )
+
+func (c *MatchCmd) Help() string {
+	return `
+This operation produces the match rate of this PAIR clean room operation,
+and output the list of decrypted and matched PAIR IDs.
+
+Please be aware that this operation is for demo purposes only for
+resonable data size.
+`
+}
 
 func (c *MatchCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
