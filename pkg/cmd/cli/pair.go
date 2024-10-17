@@ -124,7 +124,7 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
 	// defer statements are executed in Last In First Out order, so we will write the completed file last.
-	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.advTwicePath)
+	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.pubTriplePath)
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
