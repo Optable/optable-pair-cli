@@ -15,7 +15,7 @@ type (
 		Input                string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
 		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
 		Output               string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
-		SavePublisherPAIRIDs bool   `cmd:"" help:"Save the publisher's PAIR IDs to a file named publisher_triple_encrypted_pair_ids.csv, to be used later. If not provided, the publisher's PAIR IDs will not be saved."`
+		SavePublisherPAIRIDs bool   `cmd:"" short:"s" help:"Save the publisher's PAIR IDs to a file named publisher_triple_encrypted_pair_ids.csv, to be used later. If not provided, the publisher's PAIR IDs will not be saved."`
 	}
 )
 
@@ -80,21 +80,21 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	// 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
 	//
 	// Depending on the state of the publisher and advertiser, we can start from any of the steps.
-	action := actionFromStates(publisherState, advertiserState, c.Output)
+	action := actionFromStates(publisherState, advertiserState)
 
 	if action.contributeAdvertiserData {
-		return startFromStepOne(ctx, pairCfg, c.Input, c.Output)
+		return startFromStepOne(ctx, pairCfg, c.Input, c.Output, c.SavePublisherPAIRIDs)
 	}
 
 	if action.reEncryptPublisherData {
-		return startFromStepTwo(ctx, pairCfg, c.Output)
+		return startFromStepTwo(ctx, pairCfg, c.Output, c.SavePublisherPAIRIDs)
 	}
 
 	if action.matchData {
-		return startFromStepThree(ctx, pairCfg, c.Output)
+		return startFromStepThree(ctx, pairCfg, c.Output, c.SavePublisherPAIRIDs)
 	}
 
-	return fmt.Errorf("unexpected advertiser state: %s", advertiserState)
+	return fmt.Errorf("unexpected advertiser state: %s and publisher state: %s", advertiserState, publisherState)
 }
 
 type action struct {
@@ -109,7 +109,7 @@ type action struct {
 	matchData bool
 }
 
-func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_State, output string) action {
+func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_State) action {
 	switch publisherState {
 	case v1.Cleanroom_Participant_DATA_CONTRIBUTED:
 		if advertiserState == v1.Cleanroom_Participant_INVITED {
@@ -121,7 +121,7 @@ func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_S
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: output != ""}
+			return action{matchData: true}
 		}
 	case v1.Cleanroom_Participant_DATA_TRANSFORMING:
 		fallthrough
@@ -131,13 +131,13 @@ func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_S
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: output != ""}
+			return action{matchData: true}
 		}
 	case v1.Cleanroom_Participant_RUNNING:
 		fallthrough
 	case v1.Cleanroom_Participant_SUCCEEDED:
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: output != ""}
+			return action{matchData: true}
 		}
 	default:
 	}
@@ -145,14 +145,14 @@ func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_S
 	return action{}
 }
 
-func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string) error {
+func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string, savePublisherData bool) error {
 	// Step 1 Hash and encrypt the advertiser data and output to advTwicePath.
 	if err := pairCfg.hashEncryt(ctx, input); err != nil {
 		return fmt.Errorf("hashEncryt: %w", err)
 	}
 
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
-	if err := pairCfg.reEncrypt(ctx); err != nil {
+	if err := pairCfg.reEncrypt(ctx, savePublisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
 	}
 
@@ -161,12 +161,12 @@ func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output st
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output)
+	return pairCfg.match(ctx, output, savePublisherData)
 }
 
-func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string) error {
+func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string, savePublisherData bool) error {
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
-	if err := pairCfg.reEncrypt(ctx); err != nil {
+	if err := pairCfg.reEncrypt(ctx, savePublisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
 	}
 
@@ -175,14 +175,14 @@ func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string) e
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output)
+	return pairCfg.match(ctx, output, savePublisherData)
 }
 
-func startFromStepThree(ctx context.Context, pairCfg *pairConfig, output string) error {
+func startFromStepThree(ctx context.Context, pairCfg *pairConfig, output string, savePublisherData bool) error {
 	if output == "" {
 		return nil
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output)
+	return pairCfg.match(ctx, output, savePublisherData)
 }

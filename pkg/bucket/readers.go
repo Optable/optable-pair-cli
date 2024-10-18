@@ -28,10 +28,11 @@ type (
 		PubReader         []io.ReadCloser
 		AdvPrefixedBucket *prefixedBucket
 		PubPrefixedBucket *prefixedBucket
+		PubFileReader     io.Reader
 	}
 )
 
-func NewBucketReaders(ctx context.Context, downScopedToken, advURL, pubURL string) (*BucketReaders, error) {
+func NewBucketReaders(ctx context.Context, downScopedToken, advURL string, opts ...BucketOption) (*BucketReaders, error) {
 	if downScopedToken == "" {
 		return nil, errors.New("downscopedToken is required")
 	}
@@ -50,27 +51,40 @@ func NewBucketReaders(ctx context.Context, downScopedToken, advURL, pubURL strin
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}
 
+	bucketOption := &bucketOptions{}
+	for _, opt := range opts {
+		opt(bucketOption)
+	}
+
 	advPrefixedBucket, err := bucketFromObjectURL(advURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	pubPrefixedBucket, err := bucketFromObjectURL(pubURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
-	}
-
-	bucker := &BucketReaders{
+	bucket := &BucketReaders{
 		client:            client,
 		AdvPrefixedBucket: advPrefixedBucket,
-		PubPrefixedBucket: pubPrefixedBucket,
 	}
 
-	if err := bucker.newObjectReaders(ctx); err != nil {
+	if pubURL := bucketOption.sourceURL; pubURL != "" {
+		pubPrefixedBucket, err := bucketFromObjectURL(pubURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse destination URL: %w", err)
+		}
+
+		bucket.PubPrefixedBucket = pubPrefixedBucket
+
+	}
+
+	if reader := bucketOption.reader; reader != nil {
+		bucket.PubFileReader = reader
+	}
+
+	if err := bucket.newObjectReaders(ctx); err != nil {
 		return nil, err
 	}
 
-	return bucker, nil
+	return bucket, nil
 }
 
 // newObjectReaders lists the objects specified by the advPrefixedBucket and pubPrefixedBucket and opens a reader for each object,
@@ -81,12 +95,22 @@ func (b *BucketReaders) newObjectReaders(ctx context.Context) error {
 		return err
 	}
 
+	b.AdvReader = advReaders
+
+	if b.PubFileReader != nil {
+		b.PubReader = []io.ReadCloser{io.NopCloser(b.PubFileReader)}
+		return nil
+	}
+
+	if b.PubPrefixedBucket == nil {
+		return errors.New("missing publisher bucket URL")
+	}
+
 	pubReaders, err := readersFromPrefixedBucket(ctx, b.client, b.PubPrefixedBucket)
 	if err != nil {
 		return err
 	}
 
-	b.AdvReader = advReaders
 	b.PubReader = pubReaders
 
 	return nil
