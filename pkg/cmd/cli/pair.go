@@ -192,6 +192,12 @@ func (c *pairConfig) match(ctx context.Context, outputPath string, useSavedPubli
 
 	logger.Info().Msg("Step 3: Match the two sets of triple encrypted PAIR IDs.")
 
+	if outputPath != "" {
+		if err := os.MkdirAll(outputPath, os.ModePerm); err != nil {
+			return fmt.Errorf("os.MkdirAll: %w", err)
+		}
+	}
+
 	opts := []bucket.BucketOption{}
 	if useSavedPublisherData {
 		fs, err := io.FileReaders(publisherTripleEncryptedDataPath)
