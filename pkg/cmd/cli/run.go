@@ -15,7 +15,7 @@ type (
 		Input                string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
 		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
 		Output               string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
-		SavePublisherPAIRIDs bool   `cmd:"" short:"s" help:"Save the publisher's PAIR IDs to a directory named publisher_triple_encrypted_data, to be used later for matching. If not provided, the publisher's PAIR IDs will not be saved."`
+		SavePublisherPAIRIDs bool   `cmd:"" short:"s" name:"save-publisher-pair-ids" help:"Save the publisher's PAIR IDs to a directory named publisher_triple_encrypted_data, to be used later for matching. If not provided, the publisher's PAIR IDs will not be saved."`
 	}
 )
 
