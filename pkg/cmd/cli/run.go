@@ -10,11 +10,12 @@ import (
 
 type (
 	RunCmd struct {
-		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserKey      string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		Input              string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
-		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
-		Output             string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
+		PairCleanroomToken   string `arg:"" help:"The PAIR clean room token to use for the operation."`
+		AdvertiserKey        string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		Input                string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
+		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
+		Output               string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
+		SavePublisherPAIRIDs bool   `cmd:"" help:"Save the publisher's PAIR IDs to a file named publisher_triple_encrypted_pair_ids.csv, to be used later. If not provided, the publisher's PAIR IDs will not be saved."`
 	}
 )
 
@@ -79,40 +80,69 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	// 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
 	//
 	// Depending on the state of the publisher and advertiser, we can start from any of the steps.
+	action := actionFromStates(publisherState, advertiserState, c.Output)
+
+	if action.contributeAdvertiserData {
+		return startFromStepOne(ctx, pairCfg, c.Input, c.Output)
+	}
+
+	if action.reEncryptPublisherData {
+		return startFromStepTwo(ctx, pairCfg, c.Output)
+	}
+
+	if action.matchData {
+		return startFromStepThree(ctx, pairCfg, c.Output)
+	}
+
+	return fmt.Errorf("unexpected advertiser state: %s", advertiserState)
+}
+
+type action struct {
+	// contributeAdvertiserData indicates whether the advertiser should start by contribute data.
+	// which is step 1 in the PAIR lifecycle.
+	contributeAdvertiserData bool
+	// reEncryptPublisherData indicates whether the advertiser should start by re-encrypt the publisher's data.
+	// which is step 2 in the PAIR lifecycle.
+	reEncryptPublisherData bool
+	// matchData indicates whether the advertiser should start by matching the two sets of triple encrypted PAIR IDs.
+	// which is step 3 in the PAIR lifecycle.
+	matchData bool
+}
+
+func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_State, output string) action {
 	switch publisherState {
 	case v1.Cleanroom_Participant_DATA_CONTRIBUTED:
 		if advertiserState == v1.Cleanroom_Participant_INVITED {
-			return startFromStepOne(ctx, pairCfg, c.Input, c.Output)
+			return action{contributeAdvertiserData: true}
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_CONTRIBUTED {
-			return startFromStepTwo(ctx, pairCfg, c.Output)
+			return action{reEncryptPublisherData: true}
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return startFromStepThree(ctx, pairCfg, c.Output)
+			return action{matchData: output != ""}
 		}
 	case v1.Cleanroom_Participant_DATA_TRANSFORMING:
 		fallthrough
 	case v1.Cleanroom_Participant_DATA_TRANSFORMED:
 		if advertiserState == v1.Cleanroom_Participant_DATA_CONTRIBUTED {
-			return startFromStepTwo(ctx, pairCfg, c.Output)
+			return action{reEncryptPublisherData: true}
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return startFromStepThree(ctx, pairCfg, c.Output)
+			return action{matchData: output != ""}
 		}
 	case v1.Cleanroom_Participant_RUNNING:
 		fallthrough
 	case v1.Cleanroom_Participant_SUCCEEDED:
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return startFromStepThree(ctx, pairCfg, c.Output)
+			return action{matchData: output != ""}
 		}
 	default:
-		return fmt.Errorf("unexpected publisher state: %s", publisherState)
 	}
 
-	return fmt.Errorf("unexpected advertiser state: %s", advertiserState)
+	return action{}
 }
 
 func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string) error {
