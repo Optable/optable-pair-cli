@@ -38,7 +38,19 @@ type (
 		err       error
 		cancel    context.CancelFunc
 	}
+
+	readWriterOption struct {
+		secondaryWriter io.Writer
+	}
+
+	ReadWriterOption func(*readWriterOption)
 )
+
+func WithSecondaryWriter(w io.Writer) ReadWriterOption {
+	return func(o *readWriterOption) {
+		o.secondaryWriter = w
+	}
+}
 
 type PAIROperation uint8
 
@@ -61,8 +73,17 @@ func (p PAIROperation) String() string {
 	}
 }
 
-func NewPAIRIDReadWriter(r io.Reader, w io.Writer) (*pairIDReadWriter, error) {
+func NewPAIRIDReadWriter(r io.Reader, w io.Writer, opts ...ReadWriterOption) (*pairIDReadWriter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	rwOpt := &readWriterOption{}
+	for _, opt := range opts {
+		opt(rwOpt)
+	}
+
+	if rwOpt.secondaryWriter != nil {
+		w = io.MultiWriter(w, rwOpt.secondaryWriter)
+	}
 
 	p := &pairIDReadWriter{
 		w:         csv.NewWriter(w),

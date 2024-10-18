@@ -9,9 +9,12 @@ import (
 	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"optable-pair-cli/pkg/pair"
+	"os"
 
 	"github.com/rs/zerolog"
 )
+
+const publisherTripleEncryptedDataPath = "publisher_triple_encrypted_data"
 
 type pairConfig struct {
 	downscopedToken string
@@ -119,7 +122,7 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	return nil
 }
 
-func (c *pairConfig) reEncrypt(ctx context.Context) error {
+func (c *pairConfig) reEncrypt(ctx context.Context, savePublisherData bool) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
@@ -146,8 +149,25 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 		}
 	}()
 
-	for _, rw := range b.ReadWriters {
-		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer)
+	if savePublisherData {
+		// create the publisher data directory if it does not exist
+		if err := os.MkdirAll(publisherTripleEncryptedDataPath, os.ModePerm); err != nil {
+			return fmt.Errorf("io.CreateDirectory: %w", err)
+		}
+	}
+
+	for i, rw := range b.ReadWriters {
+		opt := []pair.ReadWriterOption{}
+		if savePublisherData {
+			w, err := io.FileWriter(fmt.Sprintf("%s/pair_ids_%d.csv", publisherTripleEncryptedDataPath, i))
+			if err != nil {
+				return fmt.Errorf("io.FileWriter: %w", err)
+			}
+
+			opt = append(opt, pair.WithSecondaryWriter(w))
+		}
+
+		pairRW, err := pair.NewPAIRIDReadWriter(rw.Reader, rw.Writer, opt...)
 		if err != nil {
 			return fmt.Errorf("pair.NewPAIRIDReadWriter: %w", err)
 		}
@@ -162,7 +182,7 @@ func (c *pairConfig) reEncrypt(ctx context.Context) error {
 	return nil
 }
 
-func (c *pairConfig) match(ctx context.Context, outputPath string) error {
+func (c *pairConfig) match(ctx context.Context, outputPath string, useSavedPublisherData bool) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("waiting for publisher to re-encrypt advertiser data")
 
@@ -172,7 +192,25 @@ func (c *pairConfig) match(ctx context.Context, outputPath string) error {
 
 	logger.Info().Msg("Step 3: Match the two sets of triple encrypted PAIR IDs.")
 
-	b, err := bucket.NewBucketReaders(ctx, c.downscopedToken, c.advTriplePath, c.pubTriplePath)
+	if outputPath != "" {
+		if err := os.MkdirAll(outputPath, os.ModePerm); err != nil {
+			return fmt.Errorf("os.MkdirAll: %w", err)
+		}
+	}
+
+	opts := []bucket.BucketOption{}
+	if useSavedPublisherData {
+		fs, err := io.FileReaders(publisherTripleEncryptedDataPath)
+		if err != nil {
+			return fmt.Errorf("io.FileReaders: %w", err)
+		}
+
+		opts = append(opts, bucket.WithReader(io.MultiReader(fs...)))
+	} else {
+		opts = append(opts, bucket.WithSourceURL(c.pubTriplePath))
+	}
+
+	b, err := bucket.NewBucketReaders(ctx, c.downscopedToken, c.advTriplePath, opts...)
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}

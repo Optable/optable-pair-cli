@@ -109,15 +109,6 @@ func (w *writer) NewWriter(index int) (*csv.Writer, error) {
 		return csv.NewWriter(os.Stdout), nil
 	}
 
-	isDir, err := io.IsDir(w.path)
-	if err != nil {
-		return nil, fmt.Errorf("IsDir: %w", err)
-	}
-
-	if !isDir {
-		return nil, fmt.Errorf("%s is not a directory", w.path)
-	}
-
 	p := strings.TrimRight(w.path, "/")
 	f, err := os.Create(fmt.Sprintf("%s/result_%d.csv", p, index))
 	if err != nil {
