@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/optable/match/pkg/pair"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
@@ -71,6 +72,11 @@ func (p PAIROperation) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+type pairOps struct {
+	do      func([]byte) ([]byte, error)
+	shuffle bool
 }
 
 func NewPAIRIDReadWriter(r io.Reader, w io.Writer, opts ...ReadWriterOption) (*pairIDReadWriter, error) {
@@ -172,6 +178,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 		errChan    = make(chan error, 1)
 		once       sync.Once
 		maxWorkers = runtime.GOMAXPROCS(0)
+		operation  = &pairOps{}
 	)
 
 	// Limit the number of workers to 8
@@ -208,21 +215,21 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 					return err
 				}
 
-				var do func([]byte) ([]byte, error)
 				switch op {
 				case PAIROperationHashEncrypt:
-					do = pk.Encrypt
+					operation.do = pk.Encrypt
 				case PAIROperationReEncrypt:
-					do = pk.ReEncrypt
+					operation.do = pk.ReEncrypt
+					operation.shuffle = true
 				case PAIROperationDecrypt:
-					do = pk.Decrypt
+					operation.do = pk.Decrypt
 				default:
 					err := errors.New("invalid operation")
 					errChan <- err
 					return err
 				}
 
-				if err := p.operate(do); err != nil {
+				if err := p.operate(operation); err != nil {
 					if errors.Is(err, io.EOF) {
 						once.Do(func() {
 							done <- struct{}{}
@@ -243,15 +250,22 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 
 // operate reads a batch of records from the input reader,
 // runs the PAIR operation on the records and writes to the underlying writer.
-func (p *pairIDReadWriter) operate(do func([]byte) ([]byte, error)) error {
+func (p *pairIDReadWriter) operate(op *pairOps) error {
 	ids, ok := <-p.reader.batch
 	if !ok {
 		return p.reader.err
 	}
 
+	// Shuffle the ids in place before processing
+	// Note that we already receive the batch of IDs
+	// in a psuedo-random order from the reader.
+	if op.shuffle {
+		pair.Shuffle(ids)
+	}
+
 	records := make([][]string, 0, len(ids))
 	for _, id := range ids {
-		pairID, err := do([]byte(id))
+		pairID, err := op.do([]byte(id))
 		if err != nil {
 			return fmt.Errorf("Encrypt: %w", err)
 		}
