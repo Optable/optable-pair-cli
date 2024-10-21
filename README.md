@@ -18,9 +18,9 @@ The successfully compiled binary will be located in bin/pair.
 
 # Usage
 ## Preparing the Input File
-The input file that you provide to the `pair` utility should contain a line-separated list of sha256 hashed identifiers. Suppose the input file is named `input.csv`, you can hash the identifiers using the following command:
+The input file that you provide to the `pair` utility should contain a line-separated list of sha256 hashed email identifiers, with a prefix of `e:`. Suppose the input file is named `input.csv`, you can hash the identifiers using the following command:
 ```bash
-cat input.csv | sha256sum | cut -d' ' -f1 > hashed_input.csv
+for id in $(input.csv); do echo e:$(echo -n $id | sha256sum | cut -d " " -f 1) >> hashed_input.csv; done
 ```
 
 ## Run the PAIR operation
