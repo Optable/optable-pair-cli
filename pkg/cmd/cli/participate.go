@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"optable-pair-cli/pkg/io"
@@ -12,7 +11,7 @@ type (
 	ParticipateCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
 		Input              string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If given a directory, all files in the directory will be processed."`
-		AdvertiserKey      string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		AdvertiserKeyPath  string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
 		Output             string `cmd:"" short:"o" help:"The output file to write the advertiser data to, default to stdout."`
 		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
 	}
@@ -21,15 +20,13 @@ type (
 func (c *ParticipateCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.AdvertiserKey == "" {
-		c.AdvertiserKey = cli.config.keyConfig.Key
-		if c.AdvertiserKey == "" {
-			return errors.New("advertiser key is required, please either provide one or generate one.")
-		}
+	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
+	if err != nil {
+		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
 
 	// instantiate pair config
-	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
 	if err != nil {
 		return err
 	}

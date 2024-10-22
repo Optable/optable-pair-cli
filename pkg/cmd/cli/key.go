@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"optable-pair-cli/pkg/keys"
 )
@@ -29,15 +28,8 @@ func (c *GenerateKeyCmd) Run(cli *CliContext) error {
 		fmt.Println("The following key has been generated and saved to: ", cli.config.configPath)
 	} else {
 		conf = cli.config.keyConfig
-		fmt.Println("Key already exists. Use --force to overwrite.")
+		fmt.Printf("Key already exists at: %s. Use --force to overwrite.\n", cli.config.configPath)
 	}
-
-	marshaled, err := json.MarshalIndent(conf, "", "   ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(marshaled))
 
 	return nil
 }
