@@ -19,7 +19,7 @@ For more details on how a PAIR clean room operation works, see https://github.co
 and https://iabtechlab.com/pair/.
 `
 
-const keyConfigPath = "pair/key/key.json"
+const keyConfigPath = "opair/key/key.json"
 
 func main() {
 	var c cli.Cli
