@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -14,7 +13,7 @@ type (
 		PairCleanroomToken   string `arg:"" help:"The PAIR clean room token to use for the operation."`
 		Input                string `cmd:"" short:"i" help:"The GCS bucket URL containing objects of publisher's encrypted PAIR IDs. If given a file path, it will read from the file instead. If not provided, it will read from stdin."`
 		Output               string `cmd:"" short:"o" help:"The GCS bucket URL to write the re-encrypted publisher PAIR IDs to. If given a file path, it will write to the file instead. If not provided, it will write to stdout."`
-		AdvertiserKey        string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		AdvertiserKeyPath    string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
 		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
 		SavePublisherPAIRIDs bool   `cmd:"" short:"s" name:"save-publisher-pair-ids" help:"Save the publisher's PAIR IDs to a file named publisher_triple_encrypted_pair_ids.csv, to be used later. If not provided, the publisher's PAIR IDs will not be saved."`
 	}
@@ -23,15 +22,13 @@ type (
 func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.AdvertiserKey == "" {
-		c.AdvertiserKey = cli.config.keyConfig.Key
-		if c.AdvertiserKey == "" {
-			return errors.New("advertiser key is required, please either provide one or generate one.")
-		}
+	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
+	if err != nil {
+		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
 
 	// instantiate pair config
-	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
 	if err != nil {
 		return err
 	}

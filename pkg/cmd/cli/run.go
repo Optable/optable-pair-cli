@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	v1 "github.com/optable/match-api/v2/gen/optable/external/v1"
@@ -11,7 +10,7 @@ import (
 type (
 	RunCmd struct {
 		PairCleanroomToken   string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserKey        string `cmd:"" short:"k" help:"The advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		AdvertiserKeyPath    string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
 		Input                string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
 		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
 		Output               string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
@@ -39,15 +38,13 @@ This command can recover from a failure at any step, and will resume from the la
 func (c *RunCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	if c.AdvertiserKey == "" {
-		c.AdvertiserKey = cli.config.keyConfig.Key
-		if c.AdvertiserKey == "" {
-			return errors.New("advertiser key is required, please either provide one or generate one.")
-		}
+	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
+	if err != nil {
+		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
 
 	// instantiate the pair configuration
-	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, c.AdvertiserKey)
+	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
 	if err != nil {
 		return err
 	}

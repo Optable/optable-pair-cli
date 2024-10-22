@@ -68,3 +68,22 @@ func (c *CliContext) SaveConfig() error {
 
 	return nil
 }
+
+func ReadKeyConfig(providedKeyPath string, defaultConfig *keys.KeyConfig) (string, error) {
+	if providedKeyPath == "" {
+		advertiserKey := defaultConfig.Key
+		if advertiserKey == "" {
+			return "", errors.New("advertiser key is required, please either provide one or generate one.")
+		}
+		return advertiserKey, nil
+	}
+	config, err := LoadKeyConfig(providedKeyPath)
+	if err != nil {
+		return "", err
+	}
+	if config.keyConfig.Key == "" {
+		return "", errors.New("malformed key configuration file, please regenerate the key.")
+	}
+
+	return config.keyConfig.Key, nil
+}
