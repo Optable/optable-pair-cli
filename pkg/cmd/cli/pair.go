@@ -14,8 +14,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const publisherTripleEncryptedDataPath = "publisher_triple_encrypted_data"
-
 type pairConfig struct {
 	downscopedToken string
 	threads         int
@@ -122,7 +120,7 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	return nil
 }
 
-func (c *pairConfig) reEncrypt(ctx context.Context, savePublisherData bool) error {
+func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
@@ -149,17 +147,17 @@ func (c *pairConfig) reEncrypt(ctx context.Context, savePublisherData bool) erro
 		}
 	}()
 
-	if savePublisherData {
+	if publisherPAIRIDsPath != "" {
 		// create the publisher data directory if it does not exist
-		if err := os.MkdirAll(publisherTripleEncryptedDataPath, os.ModePerm); err != nil {
+		if err := os.MkdirAll(publisherPAIRIDsPath, os.ModePerm); err != nil {
 			return fmt.Errorf("io.CreateDirectory: %w", err)
 		}
 	}
 
 	for i, rw := range b.ReadWriters {
 		opt := []pair.ReadWriterOption{}
-		if savePublisherData {
-			w, err := io.FileWriter(fmt.Sprintf("%s/pair_ids_%d.csv", publisherTripleEncryptedDataPath, i))
+		if publisherPAIRIDsPath != "" {
+			w, err := io.FileWriter(fmt.Sprintf("%s/pair_ids_%d.csv", publisherPAIRIDsPath, i))
 			if err != nil {
 				return fmt.Errorf("io.FileWriter: %w", err)
 			}
@@ -182,7 +180,7 @@ func (c *pairConfig) reEncrypt(ctx context.Context, savePublisherData bool) erro
 	return nil
 }
 
-func (c *pairConfig) match(ctx context.Context, outputPath string, useSavedPublisherData bool) error {
+func (c *pairConfig) match(ctx context.Context, outputPath string, publisherPAIRIDsPath string) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("waiting for publisher to re-encrypt advertiser data")
 
@@ -199,8 +197,8 @@ func (c *pairConfig) match(ctx context.Context, outputPath string, useSavedPubli
 	}
 
 	opts := []bucket.BucketOption{}
-	if useSavedPublisherData {
-		fs, err := io.FileReaders(publisherTripleEncryptedDataPath)
+	if publisherPAIRIDsPath != "" {
+		fs, err := io.FileReaders(publisherPAIRIDsPath)
 		if err != nil {
 			return fmt.Errorf("io.FileReaders: %w", err)
 		}

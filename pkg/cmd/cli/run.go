@@ -9,12 +9,12 @@ import (
 
 type (
 	RunCmd struct {
-		PairCleanroomToken   string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserKeyPath    string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		Input                string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
-		NumThreads           int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
-		Output               string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
-		SavePublisherPAIRIDs bool   `cmd:"" short:"s" name:"save-publisher-pair-ids" help:"Save the publisher's PAIR IDs to a directory named publisher_triple_encrypted_data, to be used later for matching. If not provided, the publisher's PAIR IDs will not be saved."`
+		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
+		AdvertiserKeyPath  string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		Input              string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
+		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
+		Output             string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
+		PublisherPAIRIDs   string `cmd:"" short:"s" name:"publisher-pair-ids" help:"Save the publisher's PAIR IDs to a given directory. If not provided, the publisher's PAIR IDs will not be saved."`
 	}
 )
 
@@ -80,15 +80,15 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	action := actionFromStates(publisherState, advertiserState)
 
 	if action.contributeAdvertiserData {
-		return startFromStepOne(ctx, pairCfg, c.Input, c.Output, c.SavePublisherPAIRIDs)
+		return startFromStepOne(ctx, pairCfg, c.Input, c.Output, c.PublisherPAIRIDs)
 	}
 
 	if action.reEncryptPublisherData {
-		return startFromStepTwo(ctx, pairCfg, c.Output, c.SavePublisherPAIRIDs)
+		return startFromStepTwo(ctx, pairCfg, c.Output, c.PublisherPAIRIDs)
 	}
 
 	if action.matchData {
-		return startFromStepThree(ctx, pairCfg, c.Output, c.SavePublisherPAIRIDs)
+		return startFromStepThree(ctx, pairCfg, c.Output, c.PublisherPAIRIDs)
 	}
 
 	return fmt.Errorf("unexpected advertiser state: %s and publisher state: %s", advertiserState, publisherState)
@@ -142,14 +142,14 @@ func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_S
 	return action{}
 }
 
-func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string, savePublisherData bool) error {
+func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string, publisherData string) error {
 	// Step 1 Hash and encrypt the advertiser data and output to advTwicePath.
 	if err := pairCfg.hashEncryt(ctx, input); err != nil {
 		return fmt.Errorf("hashEncryt: %w", err)
 	}
 
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
-	if err := pairCfg.reEncrypt(ctx, savePublisherData); err != nil {
+	if err := pairCfg.reEncrypt(ctx, publisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
 	}
 
@@ -158,12 +158,12 @@ func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output st
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output, savePublisherData)
+	return pairCfg.match(ctx, output, publisherData)
 }
 
-func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string, savePublisherData bool) error {
+func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string, publisherData string) error {
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
-	if err := pairCfg.reEncrypt(ctx, savePublisherData); err != nil {
+	if err := pairCfg.reEncrypt(ctx, publisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
 	}
 
@@ -172,14 +172,14 @@ func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string, s
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output, savePublisherData)
+	return pairCfg.match(ctx, output, publisherData)
 }
 
-func startFromStepThree(ctx context.Context, pairCfg *pairConfig, output string, savePublisherData bool) error {
+func startFromStepThree(ctx context.Context, pairCfg *pairConfig, output string, publisherData string) error {
 	if output == "" {
 		return nil
 	}
 
 	// Step 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
-	return pairCfg.match(ctx, output, savePublisherData)
+	return pairCfg.match(ctx, output, publisherData)
 }
