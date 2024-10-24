@@ -10,13 +10,13 @@ import (
 
 type (
 	MatchCmd struct {
-		PairCleanroomToken       string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserInput          string `cmd:"" short:"a" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
-		PublisherInput           string `cmd:"" short:"p" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
-		OutputDir                string `cmd:"" short:"o" help:"The output directory path to write the decrypted and matched double encrypted PAIR IDs. Each thread will write one single file in the given directory path. If none are provided, all matched and decrypted PAIR IDs will be written to stdout."`
-		AdvertiserKeyPath        string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		NumThreads               int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
-		UseSavedPublisherPAIRIDs bool   `cmd:"" short:"s" name:"use-saved-publisher-pair-ids" help:"If set, it will use the saved publisher PAIR IDs locally in the publisher_triple_encrypted_data directory instead of fetching from GCS."`
+		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
+		AdvertiserInput    string `cmd:"" short:"a" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
+		PublisherInput     string `cmd:"" short:"p" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
+		OutputDir          string `cmd:"" short:"o" help:"The output directory path to write the decrypted and matched double encrypted PAIR IDs. Each thread will write one single file in the given directory path. If none are provided, all matched and decrypted PAIR IDs will be written to stdout."`
+		AdvertiserKeyPath  string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
+		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is 8."`
+		PublisherPAIRIDs   string `cmd:"" short:"s" name:"publisher-pair-ids" help:"Use the publisher's PAIR IDs from a path."`
 	}
 )
 
@@ -66,7 +66,7 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 		return matcher.Match(ctx, c.NumThreads, pairCfg.salt, pairCfg.key)
 	}
 
-	return pairCfg.match(ctx, c.OutputDir, c.UseSavedPublisherPAIRIDs)
+	return pairCfg.match(ctx, c.OutputDir, c.PublisherPAIRIDs)
 }
 
 func readersFromReadClosers(rs []io.ReadCloser) []io.Reader {
