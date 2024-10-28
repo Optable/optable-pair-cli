@@ -8,15 +8,20 @@ import (
 )
 
 const description = `
-Optable PAIR CLI interface
+Optable PAIR match utility
 
-pair is a tool for interacting with an Optable DCN from the command line
-to perform a PAIR (Publisher Advertiser Identity Reconciliation) operation
-in a dual data clean room environment, where Optable DCN represents
-the publisher data clean room operator.
+opair is an open-source utility used for matching encrypted Email data
+with media companies that use the Optable data collaboration platform. The
+utility runs a secure and privacy protected match on encrypted data, and is
+based on the IAB Tech Lab's open PAIR (Publisher Advertiser Identity
+Reconciliation) protocol for 2 clean rooms. The opair utility is an
+implementation of the advertiser clean room side of the protocol, while media
+companies using Optable benefit from a fully automated approach to PAIR match
+activation.
 
-For more details on how a PAIR clean room operation works, see https://github.com/Optable/match/blob/main/pkg/pair/README.md
-and https://iabtechlab.com/pair/.
+For more details on how the PAIR protocol for 2 clean rooms works, see
+https://github.com/Optable/match/blob/main/pkg/pair/README.md
+and https://iabtechlab.com/pair/
 `
 
 const keyConfigPath = "opair/key/key.json"
@@ -24,7 +29,7 @@ const keyConfigPath = "opair/key/key.json"
 func main() {
 	var c cli.Cli
 	kongCtx := kong.Parse(&c,
-		kong.Name("pair"),
+		kong.Name("opair"),
 		kong.Description(description),
 		&kong.HelpOptions{
 			Compact: true,

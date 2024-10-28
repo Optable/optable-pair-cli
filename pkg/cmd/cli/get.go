@@ -10,7 +10,7 @@ import (
 
 type (
 	GetCmd struct {
-		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
+		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
 	}
 )
 
@@ -31,7 +31,7 @@ func (c *GetCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create clean room client: %w", err)
 	}
 
-	cleanroom, err := client.GetCleanroom(ctx, false)
+	cleanroom, err := client.GetCleanroom(ctx, true)
 	if err != nil {
 		return err
 	}
