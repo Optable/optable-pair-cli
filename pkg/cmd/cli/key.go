@@ -7,7 +7,7 @@ import (
 
 type (
 	KeygenCmd struct {
-		Force bool `cmd:"" short:"f" help:"If set, will overwrite the existing key. Please note that overwriting an existing key may affect running matches."`
+		Force bool `cmd:"" short:"f" help:"If set, will overwrite the existing key. Please note that overwriting an existing key may affect currently running matches."`
 	}
 )
 

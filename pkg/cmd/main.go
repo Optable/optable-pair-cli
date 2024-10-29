@@ -10,18 +10,18 @@ import (
 const description = `
 Optable PAIR match utility
 
-opair is an open-source utility used for matching encrypted Email data
+opair is an open-source utility used for matching encrypted email addresses
 with media companies that use the Optable data collaboration platform. The
 utility runs a secure and privacy protected match on encrypted data, and is
 based on the IAB Tech Lab's open PAIR (Publisher Advertiser Identity
 Reconciliation) protocol for 2 clean rooms. The opair utility is an
-implementation of the advertiser clean room side of the protocol, while media
-companies using Optable benefit from a fully automated approach to PAIR match
-activation.
+implementation of the advertiser clean room side of the protocol, while the
+process is automated for media companies using the Optable platform.
 
-For more details on how the PAIR protocol for 2 clean rooms works, see
-https://github.com/Optable/match/blob/main/pkg/pair/README.md
-and https://iabtechlab.com/pair/
+The PAIR protocol enables targeting ads to matched users without learning who
+they are.For more details on how the PAIR protocol for 2 clean rooms works, see
+https://github.com/Optable/match/blob/main/pkg/pair/README.md and
+https://iabtechlab.com/pair/
 `
 
 const keyConfigPath = "opair/key/key.json"

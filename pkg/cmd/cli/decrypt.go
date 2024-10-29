@@ -9,12 +9,26 @@ import (
 
 type (
 	DecryptCmd struct {
-		Input             string `cmd:"" short:"i" help:"The input file containing the matched triple encrypted PAIR IDs to be decrypted. If given a directory, all files in the directory will be processed."`
+		Input             string `cmd:"" short:"i" help:"The input file containing the already matched triple encrypted PAIR IDs to be decrypted. If given a directory, all files in the directory will be processed."`
 		AdvertiserKeyPath string `cmd:"" short:"k" name:"keypath" help:"The path to the advertiser clean room's private key to use for the operation. If not provided, the key saved in the configuration file will be used."`
-		Output            string `cmd:"" short:"o" help:"The output file to write the decrypted PAIR IDs to, default to stdout."`
-		NumThreads        int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
+		Output            string `cmd:"" short:"o" help:"The output file to write the resulting publisher decrypted PAIR IDs to. Defaults to stdout."`
+		NumThreads        int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Defaults to 1, and maximum is the number of cores."`
 	}
 )
+
+func (c *DecryptCmd) Help() string {
+	return `
+Using the advertiser clean room private key, decrypt a specified list of
+triple encrypted PAIR IDs to obtain a list of publisher PAIR IDs. The
+specified list is assumed to contain previously matched PAIR IDs.
+
+This command is useful only if you are computing the intersection of triple
+encrypted PAIR IDs yourself (for example, by transferring the triple-encrypted
+PAIR ID datasets to a database and running the intersection query there, then
+downloading the result), and not when using the ` + "`opair run`" + ` command with the -o
+flag.
+	`
+}
 
 func (c *DecryptCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
