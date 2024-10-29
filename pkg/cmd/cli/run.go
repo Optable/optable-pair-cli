@@ -21,9 +21,9 @@ type (
 func (c *RunCmd) Help() string {
 	return `
 The` + " `run` " + `command runs a secure and privacy protected match on encrypted data
-using the 2 cleanroom PAIR protocol. The opair utility assumes the role of the
+using the 2 clean room PAIR protocol. The opair utility assumes the role of the
 advertiser clean room. The command must be invoked with an argument specifying
-the unique token associated with the PAIR cleanroom that you were invited to.
+the unique token associated with the PAIR clean room that you were invited to.
 You can find the <pair-cleanroom-token> by logging into the Optable PAIR
 Connector UI to which you were invited.
 
