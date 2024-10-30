@@ -9,14 +9,7 @@ type (
 	CreateCmd struct {
 		Force bool `cmd:"" short:"f" help:"If set, will overwrite the existing key. Please note that overwriting an existing key may affect currently running matches."`
 	}
-	PathCmd struct {
-	}
 )
-
-func (c *PathCmd) Run(cli *CliContext) error {
-	fmt.Println(cli.config.configPath)
-	return nil
-}
 
 func (c *CreateCmd) Run(cli *CliContext) error {
 	var conf *keys.KeyConfig

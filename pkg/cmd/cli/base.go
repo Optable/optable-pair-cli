@@ -23,7 +23,6 @@ type (
 
 	KeyCmd struct {
 		Create CreateCmd `cmd:"" help:"Generate a new advertiser clean room private key and store it locally."`
-		Path   PathCmd   `cmd:"" help:"Print the path to the current advertiser clean room private key."`
 	}
 	Cli struct {
 		Verbose int `short:"v" type:"counter" help:"Enable debug mode."`
