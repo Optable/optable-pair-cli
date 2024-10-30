@@ -9,29 +9,41 @@ import (
 
 type (
 	RunCmd struct {
-		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation."`
-		AdvertiserKeyPath  string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the cofinguration file will be used."`
-		Input              string `cmd:"" short:"i" help:"The input file containing the advertiser data to be hashed and encrypted. If a directory path is provided, all files within the directory will be processed."`
-		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Default to 1, and maximum is the number of cores."`
-		Output             string `cmd:"" short:"o" help:"The output file to write the intersected PAIR IDs to. If not provided, the intersection will not happen."`
-		PublisherPAIRIDs   string `cmd:"" short:"s" name:"publisher-pair-ids" help:"Save the publisher's PAIR IDs to a given directory. If not provided, the publisher's PAIR IDs will not be saved."`
+		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
+		AdvertiserKeyPath  string `cmd:"" short:"k" name:"keypath" help:"The path to the advertiser clean room's private key to use. If not provided, the key saved in the configuration file will be used."`
+		Input              string `cmd:"" short:"i" help:"The path to the input file containing the newline separated list of canonicalized email addresses for encrypted PAIR matching. The expected canonical form of an email address is obtained by trimming leading and trailing spaces, downcasing, and applying the SHA256 hash function without a salt. If a directory path is provided, all files within the directory will be processed."`
+		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use when running the match. Defaults to 1, and maximum is the number of cores."`
+		Output             string `cmd:"" short:"o" help:"The path to the output file to write the intersected publisher PAIR IDs to. If not provided, the intersection will not happen."`
+		PublisherPAIRIDs   string `cmd:"" name:"save-publisher-encrypted-data-locally" short:"s" help:" During the encryption stages of the PAIR protocol for 2 clean rooms, the advertiser clean room must encrypt the publisher clean room dataset with the advertiser clean room's private key. The publisher triple encrypted dataset is sent to the Optable publisher clean room where it is temporarily stored in GCS so that the intersection can be computed in the final stage. Setting this flag causes the opair utility to save a local copy of the triple encrypted publisher dataset and to use the locally saved copy when calculating the intersection. If not provided, opair will download both triple encrypted datasets from the GCS location managed by the Optable publisher clean room and assume that they have not been tampered with. Note that if you specify the -s flag without specifying -o then when you later re-run with -o you must also include the -s flag from the first run."`
 	}
 )
 
 func (c *RunCmd) Help() string {
 	return `
-This command runs the whole lifecycle of the PAIR clean room operations.
-It first hashes and encrypts the provided raw identifiers from the advertiser,
-using the shared hash salt and advertiser's private key,
-and writes the encrypted identifiers to a secure cloud storage location.
-It then reads the publisher's encrypted identifiers,
-and re-encrypts the publisher's encrypted identifiers using the same private key from the advertiser.
-Optionally, it matches the two sets of triple-encrypted PAIR IDs to calculate the match rate,
-and outputs the intersected PAIR IDs, decrypted using the advertiser private key.
-Note that the matching operation happens locally on the client side, and should be reserved
-for demo/testing purposes with reasonable data sizes only.
+The` + " `run` " + `command runs a secure and privacy protected match on encrypted data
+using the 2 clean room PAIR protocol. The opair utility assumes the role of the
+advertiser clean room. The command must be invoked with an argument specifying
+the unique token associated with the PAIR clean room that you were invited to.
+You can find the <pair-cleanroom-token> by logging into the Optable PAIR
+Connector UI to which you were invited.
 
-This command can recover from a failure at any step, and will resume from the last successful step.
+The` + " `run` " + `command expects to find the input file specified with the --input
+flag containing a newline delimited list of canonicalized email addresses for
+matching. The expected canonical form of an email address is obtained by
+trimming leading and trailing spaces, downcasing, and applying the SHA256 hash
+function without a salt. When invoked, the` + " `run` " + `command will perform all of
+the required PAIR protocol encryption and encrypted data exchange steps.
+
+The advertiser clean room's final step of computing the intersection of
+publisher PAIR IDs and calculating the resulting match rate is only performed
+when the --output flag is provided. When not providing the --output flag, the
+PAIR protocol is executed without computing the advertiser clean room
+intersection. The final step can be performed later by re-invoking` + " `run` " + `with
+the same <pair-cleanroom-token> and specifying the --output flag.
+
+The` + " `run` " + `command on a specified <pair-cleanroom-token> can recover from a
+failure at any step, and will resume from the
+last successful step.
 `
 }
 

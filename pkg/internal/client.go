@@ -72,7 +72,7 @@ func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error
 		return "", err
 	}
 
-	if tk := cleanroom.GetConfig().GetPairConfig().GetToken(); tk != nil {
+	if tk := cleanroom.GetConfig().GetPair().GetGcsToken(); tk != nil {
 		if tk.GetExpireTime().AsTime().Before(time.Now()) {
 			// refresh
 			cleanroom, err = c.RefreshToken(ctx)
@@ -80,10 +80,10 @@ func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error
 				return "", fmt.Errorf("failed to refresh token: %w", err)
 			}
 
-			return cleanroom.GetConfig().GetPairConfig().GetToken().GetToken(), nil
+			return cleanroom.GetConfig().GetPair().GetGcsToken().GetValue(), nil
 		}
 
-		return tk.GetToken(), nil
+		return tk.GetValue(), nil
 	}
 
 	return "", fmt.Errorf("token not found")
@@ -95,7 +95,7 @@ func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_P
 		return nil, err
 	}
 
-	return cleanroom.GetConfig().GetPairConfig(), nil
+	return cleanroom.GetConfig().GetPair(), nil
 }
 
 func (c *CleanroomClient) ReadyForMatch(ctx context.Context) error {
