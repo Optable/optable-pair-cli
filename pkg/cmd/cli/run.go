@@ -55,7 +55,7 @@ func (c *RunCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
 
-	if c.NumThreads == 0 {
+	if c.NumThreads <= 0 {
 		c.NumThreads = defaultThreadCount
 	}
 

@@ -26,7 +26,7 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	if err != nil {
 		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
-	if c.NumThreads == 0 {
+	if c.NumThreads <= 0 {
 		c.NumThreads = defaultThreadCount
 	}
 	// instantiate pair config

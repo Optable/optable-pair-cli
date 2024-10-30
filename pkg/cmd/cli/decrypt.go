@@ -32,7 +32,7 @@ flag.
 
 func (c *DecryptCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
-	if c.NumThreads == 0 {
+	if c.NumThreads <= 0 {
 		c.NumThreads = defaultThreadCount
 	}
 	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
