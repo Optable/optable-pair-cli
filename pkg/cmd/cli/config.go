@@ -8,10 +8,7 @@ import (
 	"optable-pair-cli/pkg/keys"
 	"os"
 	"path/filepath"
-	"runtime"
 )
-
-var defaultThreadCount = runtime.NumCPU()
 
 type Config struct {
 	// Path to the configuration file.

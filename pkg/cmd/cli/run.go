@@ -12,7 +12,7 @@ type (
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
 		AdvertiserKeyPath  string `cmd:"" short:"k" name:"keypath" help:"The path to the advertiser clean room's private key to use. If not provided, the key saved in the configuration file will be used."`
 		Input              string `cmd:"" short:"i" help:"The path to the input file containing the newline separated list of canonicalized email addresses for encrypted PAIR matching. The expected canonical form of an email address is obtained by trimming leading and trailing spaces, downcasing, and applying the SHA256 hash function without a salt. If a directory path is provided, all files within the directory will be processed."`
-		NumThreads         int    `cmd:"" short:"n" help:"The number of threads to use for the operation. Defaults to the number of the available cores on the machine."`
+		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use when running the match. Defaults to 1, and maximum is the number of cores."`
 		Output             string `cmd:"" short:"o" help:"The path to the output file to write the intersected publisher PAIR IDs to. If not provided, the intersection will not happen."`
 		PublisherPAIRIDs   string `cmd:"" name:"save-publisher-encrypted-data-locally" short:"s" help:" During the encryption stages of the PAIR protocol for 2 clean rooms, the advertiser clean room must encrypt the publisher clean room dataset with the advertiser clean room's private key. The publisher triple encrypted dataset is sent to the Optable publisher clean room where it is temporarily stored in GCS so that the intersection can be computed in the final stage. Setting this flag causes the opair utility to save a local copy of the triple encrypted publisher dataset and to use the locally saved copy when calculating the intersection. If not provided, opair will download both triple encrypted datasets from the GCS location managed by the Optable publisher clean room and assume that they have not been tampered with. Note that if you specify the -s flag without specifying -o then when you later re-run with -o you must also include the -s flag from the first run."`
 	}
@@ -53,10 +53,6 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
 	if err != nil {
 		return fmt.Errorf("ReadKeyConfig: %w", err)
-	}
-
-	if c.NumThreads == 0 {
-		c.NumThreads = defaultThreadCount
 	}
 
 	// instantiate the pair configuration
