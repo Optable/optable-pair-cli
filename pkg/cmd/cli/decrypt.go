@@ -9,7 +9,7 @@ import (
 
 type (
 	DecryptCmd struct {
-		Input             string `cmd:"" short:"i" help:"The input file containing the already matched triple encrypted PAIR IDs to be decrypted. If given a directory, all files in the directory will be processed."`
+		Input             string `arg:"" help:"The input file containing the already matched triple encrypted PAIR IDs to be decrypted. If given a directory, all files in the directory will be processed."`
 		AdvertiserKeyPath string `cmd:"" short:"k" name:"keypath" help:"The path to the advertiser clean room's private key to use for the operation. If not provided, the key saved in the configuration file will be used."`
 		Output            string `cmd:"" short:"o" help:"The output file to write the resulting publisher decrypted PAIR IDs to. Defaults to stdout."`
 		NumThreads        int    `cmd:"" short:"n" help:"The number of threads to use for the operation. Defaults to the number of the available cores on the machine."`
