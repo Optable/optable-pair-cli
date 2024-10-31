@@ -39,6 +39,6 @@ jobs:
               --repo="$GITHUB_REPOSITORY" \
               --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
               --generate-notes \
-              release/opair-darwin-arm64 \
+              release/opair-darwin \
               release/opair-linux-amd64 \
               release/opair-windows-amd64.exe
