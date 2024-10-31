@@ -29,7 +29,7 @@ for id in $(input.csv); do echo $(echo -n $id | sha256sum | cut -d " " -f 1) >> 
 To perform a secure PAIR clean room operation with a DCN, you must first obtain an `<pair-cleanroom-token>` from the Optable DCN's operator. You can then run the following command to generate a secret key.
 
 ```bash
-bin/opair generate-key
+bin/opair key create
 ```
 
 The key is saved locally in `$XDG_CONFIG_HOME/opair/`. This directory is created with the proper file permissions to prevent snooping since it will contain private keys associated with the PAIR operation.
@@ -38,7 +38,7 @@ You can now run the PAIR operation using the following command:
 
 ```bash
 token=<pair-cleanroom-token>
-bin/opair run $token -i hashed_input.csv
+bin/opair cleanroom run $token -i hashed_input.csv
 ```
 
 You can optionally provide the argument `-o` or `--output` to specify the output directory, which will then compute the intersection of the triple encrypted PAIR IDs locally on your machine, decrypt it using the private key, and store the result in the specified directory. You can also use the argument `-n` or `--num-threads` to control the concurrency of the operation.
