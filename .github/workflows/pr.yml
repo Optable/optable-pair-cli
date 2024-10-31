@@ -10,7 +10,7 @@ env:
   GOPATH: ${{ github.workspace }}
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
