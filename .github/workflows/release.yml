@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  GOPATH: ${{ github.workspace }}
+
 jobs:
   build-release:
     runs-on: ubuntu-24.04
