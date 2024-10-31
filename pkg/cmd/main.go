@@ -41,12 +41,16 @@ func main() {
 		},
 	)
 
-	configPath, err := xdg.ConfigFile(keyConfigPath)
-	if err != nil {
-		kongCtx.FatalIfErrorf(err)
+	configPath := c.AdvertiserKeyPath
+	if configPath == "" {
+		var err error
+		configPath, err = xdg.ConfigFile(keyConfigPath)
+		if err != nil {
+			kongCtx.FatalIfErrorf(err)
+		}
 	}
 
-	conf, err := cli.LoadKeyConfig(configPath)
+	conf, err := cli.LoadKeyConfig(c.Context, configPath, false)
 	if err != nil {
 		kongCtx.FatalIfErrorf(err)
 	}

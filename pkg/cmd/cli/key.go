@@ -23,7 +23,7 @@ func (c *CreateCmd) Run(cli *CliContext) error {
 		// overwrite the key config
 		conf = key
 		cli.config.keyConfig = conf
-		cli.SaveConfig()
+		cli.SaveConfig(cli.keyContext)
 
 		fmt.Println("The following key has been generated and saved to: ", cli.config.configPath)
 	} else {

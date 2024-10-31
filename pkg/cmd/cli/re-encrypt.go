@@ -22,7 +22,7 @@ type (
 func (c *ReEncryptCmd) Run(cli *CliContext) error {
 	ctx := cli.Context()
 
-	advertiserKey, err := ReadKeyConfig(c.AdvertiserKeyPath, cli.config.keyConfig)
+	advertiserKey, err := ReadKeyConfig(cli.keyContext, cli.config)
 	if err != nil {
 		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
