@@ -6,12 +6,12 @@ import (
 )
 
 type (
-	KeygenCmd struct {
+	CreateCmd struct {
 		Force bool `cmd:"" short:"f" help:"If set, will overwrite the existing key. Please note that overwriting an existing key may affect currently running matches."`
 	}
 )
 
-func (c *KeygenCmd) Run(cli *CliContext) error {
+func (c *CreateCmd) Run(cli *CliContext) error {
 	var conf *keys.KeyConfig
 
 	if cli.config.keyConfig == nil || c.Force {

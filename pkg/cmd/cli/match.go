@@ -15,7 +15,7 @@ type (
 		PublisherInput     string `cmd:"" short:"p" help:"If given a file path, it will read from the file. If not provided, it will read from the GCS path specified from the token."`
 		OutputDir          string `cmd:"" short:"o" help:"The output directory path to write the decrypted and matched double encrypted PAIR IDs. Each thread will write one single file in the given directory path. If none are provided, all matched and decrypted PAIR IDs will be written to stdout."`
 		AdvertiserKeyPath  string `cmd:"" short:"k" help:"The path to the advertiser private key to use for the operation. If not provided, the key saved in the configuration file will be used."`
-		NumThreads         int    `cmd:"" short:"n" default:"1" help:"The number of threads to use for the operation. Defaults to 1, and maximum is 8."`
+		NumThreads         int    `cmd:"" short:"n" help:"The number of threads to use for the operation. Defaults to the number of the available cores on the machine."`
 		PublisherPAIRIDs   string `cmd:"" short:"s" name:"publisher-pair-ids" help:"Use the publisher's PAIR IDs from a path."`
 	}
 )
@@ -34,7 +34,9 @@ func (c *MatchCmd) Run(cli *CliContext) error {
 	if err != nil {
 		return fmt.Errorf("ReadKeyConfig: %w", err)
 	}
-
+	if c.NumThreads <= 0 {
+		c.NumThreads = defaultThreadCount
+	}
 	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
 	if err != nil {
 		return err

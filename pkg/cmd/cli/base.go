@@ -11,20 +11,28 @@ type CliContext struct {
 	config *Config
 }
 
-type Cli struct {
-	Verbose int `short:"v" type:"counter" help:"Enable debug mode."`
+type (
+	CleanroomCmd struct {
+		Get         GetCmd         `cmd:"" help:"Get the current status and configuration associated with the specified Optable PAIR clean room."`
+		Participate ParticipateCmd `cmd:"" hidden:"" help:"Participate in the PAIR operation by contributing advertiser hashed and encrypted data."`
+		ReEncrypt   ReEncryptCmd   `cmd:"" hidden:"" help:"Re-encrypt publisher's PAIR IDs with the advertiser key."`
+		Match       MatchCmd       `cmd:"" hidden:"" help:"Match publisher's PAIR IDs with advertiser's PAIR IDs."`
+		Run         RunCmd         `cmd:"" help:"As the advertiser clean room, run the PAIR match protocol with the publisher that has invited you to the specified Optable PAIR clean room."`
+		Decrypt     DecryptCmd     `cmd:"" help:"Decrypt a list of previously matched triple encrypted PAIR IDs using the advertiser clean room's private key."`
+	}
 
-	Version VersionCmd `cmd:"" help:"Print utility version"`
+	KeyCmd struct {
+		Create CreateCmd `cmd:"" help:"Generate a new advertiser clean room private key and store it locally."`
+	}
+	Cli struct {
+		Verbose int `short:"v" type:"counter" help:"Enable debug mode."`
 
-	Keygen KeygenCmd `cmd:"" help:"Generate a new advertiser clean room private key and store it locally."`
+		Version VersionCmd `cmd:"" help:"Print utility version"`
 
-	Get         GetCmd         `cmd:"" name:"getconfig" help:"Get the current status and configuration associated with the specified Optable PAIR clean room."`
-	Participate ParticipateCmd `cmd:"" hidden:"" help:"Participate in the PAIR operation by contributing advertiser hashed and encrypted data."`
-	ReEncrypt   ReEncryptCmd   `cmd:"" hidden:"" help:"Re-encrypt publisher's PAIR IDs with the advertiser key."`
-	Match       MatchCmd       `cmd:"" hidden:"" help:"Match publisher's PAIR IDs with advertiser's PAIR IDs."`
-	Run         RunCmd         `cmd:"" help:"As the advertiser clean room, run the PAIR match protocol with the publisher that has invited you to the specified Optable PAIR clean room."`
-	Decrypt     DecryptCmd     `cmd:"" help:"Decrypt a list of previously matched triple encrypted PAIR IDs using the advertiser clean room's private key."`
-}
+		CleanroomCmd CleanroomCmd `cmd:"" name:"cleanroom" help:"Commands for interacting with Optable PAIR clean rooms."`
+		KeyCmd       KeyCmd       `cmd:"" name:"key" help:"Commands for managing advertiser clean room private keys."`
+	}
+)
 
 func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
 	cliCtx := &CliContext{
