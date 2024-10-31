@@ -13,6 +13,7 @@ env:
 
 jobs:
   build-release:
+    name: Release pushed tag
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
@@ -25,11 +26,6 @@ jobs:
         run: go get ./...
       - name: build
         run: make release
-  release:
-    name: Release pushed tag
-    needs: [build-release]
-    runs-on: ubuntu-24.04
-    steps:
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
