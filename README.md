@@ -1,4 +1,7 @@
 # optable-pair-cli
+
+[![optable-pair-cli CI](https://github.com/Optable/optable-pair-cli/actions/workflows/pr.yml/badge.svg?branch=main&event=push)](https://github.com/Optable/optable-pair-cli/actions/workflows/pr.yml)
+
 An open-source Command Line Interface (CLI) utility written in Golang to allow any PAIR partner of an Optable Data Collaboration Node (DCN) user to perform PAIR (Publisher Advertiser Identity Reconciliation) operations in a secure dual clean room environment.
 
 # Build

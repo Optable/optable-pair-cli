@@ -1,0 +1,25 @@
+name: optable-pair-cli CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  GOPATH: ${{ github.workspace }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: '${{ env.GOPATH }}/go.mod'
+      - name: Install dependencies
+        run: go get ./...
+      - name: Build
+        run: make build
