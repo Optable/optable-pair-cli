@@ -28,7 +28,7 @@ jobs:
   release:
     name: Release pushed tag
     needs: [build-release]
-    runs-on: ubuntu-24-04
+    runs-on: ubuntu-24.04
     steps:
       - name: Create release
         env:
