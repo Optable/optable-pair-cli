@@ -31,7 +31,7 @@ func ensureKeyConfigPath(configPath string) error {
 	return nil
 }
 
-func LoadKeyConfig(configPath string) (*Config, error) {
+func loadAllKeyConfigs(configPath string) (map[string]keys.KeyConfig, error) {
 	if err := ensureKeyConfigPath(configPath); err != nil {
 		return nil, err
 	}
@@ -43,44 +43,57 @@ func LoadKeyConfig(configPath string) (*Config, error) {
 	}
 	defer file.Close()
 
-	var config keys.KeyConfig
-	if err := json.NewDecoder(file).Decode(&config); err != nil {
+	var configs map[string]keys.KeyConfig
+	if err := json.NewDecoder(file).Decode(&configs); err != nil {
 		if errors.Is(err, io.EOF) {
-			return &Config{configPath: configPath}, nil
+			return nil, err
 		} else {
 			return nil, fmt.Errorf("json.Decode: %w", err)
 		}
 	}
-
-	return &Config{
-		configPath: configPath,
-		keyConfig:  &config,
-	}, nil
+	return configs, nil
 }
 
-func (c *CliContext) SaveConfig() error {
+func LoadKeyConfig(context, configPath string, strict bool) (*Config, error) {
+	configs, err := loadAllKeyConfigs(configPath)
+	if errors.Is(err, io.EOF) {
+		return &Config{configPath: configPath}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	if config, ok := configs[context]; ok {
+		return &Config{
+			configPath: configPath,
+			keyConfig:  &config,
+		}, nil
+	}
+	if !strict {
+		return &Config{configPath: configPath}, nil
+	}
+	return nil, errors.New("no key configuration found for the specified context")
+}
+
+func (c *CliContext) SaveConfig(context string) error {
+	configs, err := loadAllKeyConfigs(c.config.configPath)
+	if errors.Is(err, io.EOF) {
+		configs = make(map[string]keys.KeyConfig)
+	} else if err != nil {
+		return err
+	}
 	file, err := os.OpenFile(c.config.configPath, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}
-	defer file.Close()
-
-	if err := json.NewEncoder(file).Encode(c.config.keyConfig); err != nil {
+	configs[context] = *c.config.keyConfig
+	if err := json.NewEncoder(file).Encode(configs); err != nil {
 		return fmt.Errorf("json.Encode: %w", err)
 	}
 
 	return nil
 }
 
-func ReadKeyConfig(providedKeyPath string, defaultConfig *keys.KeyConfig) (string, error) {
-	if providedKeyPath == "" {
-		advertiserKey := defaultConfig.Key
-		if advertiserKey == "" {
-			return "", errors.New("advertiser key is required, please either provide one or generate one.")
-		}
-		return advertiserKey, nil
-	}
-	config, err := LoadKeyConfig(providedKeyPath)
+func ReadKeyConfig(context string, config *Config) (string, error) {
+	config, err := LoadKeyConfig(context, config.configPath, true)
 	if err != nil {
 		return "", err
 	}

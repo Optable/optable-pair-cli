@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"optable-pair-cli/pkg/internal"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -34,6 +35,15 @@ func (c *GetCmd) Run(cli *CliContext) error {
 	cleanroom, err := client.GetCleanroom(ctx, true)
 	if err != nil {
 		return err
+	}
+
+	config := cleanroom.GetConfig().GetPair()
+	shouldTokenRefresh := config.GcsToken == nil || config.GcsToken.ExpireTime.AsTime().Before(time.Now())
+	if shouldTokenRefresh {
+		cleanroom, err = client.RefreshToken(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	marshaler := protojson.MarshalOptions{
