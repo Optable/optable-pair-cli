@@ -1,7 +1,9 @@
 # optable-pair-cli
 [![optable-pair-cli CI](https://github.com/Optable/optable-pair-cli/actions/workflows/pr.yml/badge.svg?event=push)](https://github.com/Optable/optable-pair-cli/actions/workflows/pr.yml)
 
-An open-source Command Line Interface (CLI) utility written in Golang to allow any PAIR partner of an Optable Data Collaboration Node (DCN) user to perform PAIR (Publisher Advertiser Identity Reconciliation) operations in a secure dual clean room environment.
+The optable-pair-CLI is an open-source Command Line Interface (CLI) utility written in Golang that enables an advertiser clean room invited by an Optable publisher to run a secure PAIR (Publisher Advertiser Identity Reconciliation) match and activation. The utility implements the advertiser clean room side of the 2 clean room variant of the open PAIR protocol, while the Optable Data Collaboration Platform powers the publisher clean room side of the operation, automating matching and publisher PAIR ID activation.
+
+The PAIR protocol enables targeting ads to matched users without learning who they are. For more details on how the PAIR protocol for 2 clean rooms works, see the [README in Optable's open-source match library](https://github.com/Optable/match/blob/main/pkg/pair/README.md) and the [IAB Tech Lab's PAIR standard](https://iabtechlab.com/pair/).
 
 # Build
 To build the CLI, run the following command:
@@ -22,7 +24,7 @@ The successfully compiled binary will be located in `bin/opair`.
 ## Preparing the Input File
 The input file that you provide to the `opair` utility should contain a line-separated list of sha256 hashed email identifiers. Suppose the input file is named `input.csv`, you can hash the identifiers using the following command:
 ```bash
-for id in $(input.csv); do echo $(echo -n $id | sha256sum | cut -d " " -f 1) >> hashed_input.csv; done
+for id in $(cat input.csv); do echo $(echo -n $id | sha256sum | cut -d " " -f 1) >> hashed_input.csv; done
 ```
 
 ## Run the PAIR operation
