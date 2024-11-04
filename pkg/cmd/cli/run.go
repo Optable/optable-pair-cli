@@ -10,7 +10,6 @@ import (
 type (
 	RunCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
-		AdvertiserKeyPath  string `cmd:"" short:"k" name:"keypath" help:"The path to the advertiser clean room's private key to use. If not provided, the key saved in the configuration file will be used."`
 		Input              string `cmd:"" short:"i" help:"The path to the input file containing the newline separated list of canonicalized email addresses for encrypted PAIR matching. The expected canonical form of an email address is obtained by trimming leading and trailing spaces, downcasing, and applying the SHA256 hash function without a salt. If a directory path is provided, all files within the directory will be processed."`
 		NumThreads         int    `cmd:"" short:"n" help:"The number of threads to use for the operation. Defaults to the number of the available cores on the machine."`
 		Output             string `cmd:"" short:"o" help:"The path to the output file to write the intersected publisher PAIR IDs to. If not provided, the intersection will not happen."`
