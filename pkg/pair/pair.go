@@ -2,7 +2,6 @@ package pair
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -167,18 +166,6 @@ func (p *pairIDReadWriter) Decrypt(ctx context.Context, numWorkers int, salt, pr
 	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationDecrypt)
 }
 
-func decryptAndBase64EncodeFunc(pk *pair.PrivateKey) func(ciphertext []byte) ([]byte, error) {
-	return func(bytes []byte) ([]byte, error) {
-		decrypted, err := pk.Decrypt(bytes)
-		if err != nil {
-			return nil, err
-		}
-		dst := make([]byte, base64.StdEncoding.EncodedLen(len(decrypted)))
-		base64.StdEncoding.Encode(dst, decrypted)
-		return dst, nil
-	}
-}
-
 func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privateKey string, op PAIROperation) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
@@ -235,7 +222,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 					operation.do = pk.ReEncrypt
 					operation.shuffle = true
 				case PAIROperationDecrypt:
-					operation.do = decryptAndBase64EncodeFunc(pk)
+					operation.do = pk.Decrypt
 				default:
 					err := errors.New("invalid operation")
 					errChan <- err
