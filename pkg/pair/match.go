@@ -150,7 +150,6 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 	if err != nil {
 		return fmt.Errorf("NewPAIRPrivateKey: %w", err)
 	}
-	decrypt := decryptAndBase64EncodeFunc(pk)
 
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -191,7 +190,7 @@ func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey st
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
-					decrypted, err := decrypt(matched)
+					decrypted, err := pk.Decrypt(matched)
 					if err != nil {
 						return err
 					}
