@@ -19,9 +19,14 @@ import (
 )
 
 const (
-	batchSize = 1024
+	batchSize      = 1024
+	minimumIDCount = 1000
 
 	maxOperationRunTime = 4 * time.Hour
+)
+
+var (
+	ErrInputBelowThreshold = errors.New("not enough identifiers for a secure PAIR ID match")
 )
 
 type (
@@ -214,6 +219,10 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 				return fmt.Errorf("g.Wait: %w", err)
 			}
 			close(done)
+
+			if p.reader.read.Load() < minimumIDCount {
+				return ErrInputBelowThreshold
+			}
 
 			logger.Debug().Msgf("%s: read %d IDs, written %d PAIR IDs in %s", op, p.reader.read.Load(), p.written.Load(), time.Since(startTime))
 			return nil
