@@ -36,6 +36,14 @@ func (c *ReEncryptCmd) Run(cli *CliContext) error {
 
 	// Allow testing with local files.
 	if !io.IsGCSBucketURL(c.Input) && !io.IsGCSBucketURL(c.Output) {
+		ok, err := io.IsInputFileAboveCount(c.Input, PAIRIDMinimumThreshold)
+		if err != nil {
+			return fmt.Errorf("io.IsInputFileAboveCount: %w", err)
+		}
+		if !ok {
+			return ErrInputBelowThreshold
+		}
+
 		in, err := io.FileReaders(c.Input)
 		if err != nil {
 			return fmt.Errorf("fileReaders: %w", err)

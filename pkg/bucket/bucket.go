@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/url"
 	"strings"
+
+	"optable-pair-cli/pkg/io"
 
 	"cloud.google.com/go/storage"
 	"github.com/rs/zerolog"
@@ -17,7 +18,9 @@ import (
 	"google.golang.org/api/option"
 )
 
-const CompletedFile = ".Completed"
+const (
+	CompletedFile = ".Completed"
+)
 
 type (
 	// BucketReadWriter contains the storage client and read writers for the source and destination buckets.
@@ -285,4 +288,82 @@ func blobFromObjectName(objectName string) string {
 
 func shortHex() string {
 	return fmt.Sprintf("%08x", rand.Int32())
+}
+
+func BucketObjectAboveMinimumIDCount(ctx context.Context, downscopedToken string, srcBucketURL string, minThreshold int) (bool, error) {
+	if downscopedToken == "" {
+		return false, ErrTokenRequired
+	}
+
+	client, err := storage.NewClient(
+		ctx,
+		option.WithTokenSource(
+			oauth2.StaticTokenSource(
+				&oauth2.Token{
+					AccessToken: downscopedToken,
+				},
+			),
+		),
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to create storage client: %w", err)
+	}
+
+	srcPrefixedBucket, err := bucketFromObjectURL(srcBucketURL)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse source URL: %w", err)
+	}
+
+	rc, err := newObjectReadCloser(ctx, client, srcPrefixedBucket)
+	if err != nil {
+		return false, fmt.Errorf("failed to create read writers: %w", err)
+	}
+
+	defer func() {
+		for _, c := range rc {
+			_ = c.Close()
+		}
+	}()
+
+	rs := make([]io.Reader, len(rc))
+	for i, r := range rc {
+		rs[i] = r
+	}
+
+	return io.ReadAboveCount(io.MultiReader(rs...), minThreshold)
+}
+
+// newObjectReadCloser lists the objects specified by the srcPrefixedBucket and opens a reader for each object,
+// except for the .Completed file.
+func newObjectReadCloser(ctx context.Context, client *storage.Client, srcPrefixedBucket *prefixedBucket) ([]io.ReadCloser, error) {
+	logger := zerolog.Ctx(ctx) //
+	query := &storage.Query{Prefix: srcPrefixedBucket.prefix + "/"}
+
+	srcBucket := client.Bucket(srcPrefixedBucket.bucket)
+
+	it := srcBucket.Objects(ctx, query)
+	var rc []io.ReadCloser
+
+	for {
+		obj, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		} else if err != nil {
+			logger.Debug().Err(err).Msgf("failed to list objects from source bucket %s", srcPrefixedBucket.prefix)
+			return nil, err
+		}
+
+		if strings.HasSuffix(obj.Name, CompletedFile) || strings.HasSuffix(obj.Name, "/") || obj.Size == 0 {
+			continue
+		}
+
+		reader, err := srcBucket.Object(obj.Name).NewReader(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		rc = append(rc, reader)
+	}
+
+	return rc, nil
 }

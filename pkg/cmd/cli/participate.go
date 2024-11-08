@@ -32,18 +32,27 @@ func (c *ParticipateCmd) Run(cli *CliContext) error {
 		return err
 	}
 
-	fs, err := io.FileReaders(c.Input)
-	if err != nil {
-		return fmt.Errorf("io.FileReaders: %w", err)
-	}
-	in := io.MultiReader(fs...)
-
 	// Allow testing with local files.
 	if !io.IsGCSBucketURL(c.Output) {
 		out, err := io.FileWriter(c.Output)
 		if err != nil {
 			return fmt.Errorf("io.FileWriter: %w", err)
 		}
+
+		// check if the advertiser's PAIR IDs are above the threshold
+		ok, err := io.IsInputFileAboveCount(c.Input, PAIRIDMinimumThreshold)
+		if err != nil {
+			return fmt.Errorf("io.IsInputFileAboveCount: %w", err)
+		}
+		if !ok {
+			return ErrInputBelowThreshold
+		}
+
+		fs, err := io.FileReaders(c.Input)
+		if err != nil {
+			return fmt.Errorf("io.FileReaders: %w", err)
+		}
+		in := io.MultiReader(fs...)
 
 		rw, err := pair.NewPAIRIDReadWriter(in, out)
 		if err != nil {

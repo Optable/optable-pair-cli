@@ -1,6 +1,8 @@
 package io
 
 import (
+	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -86,4 +88,37 @@ func IsGCSBucketURL(path string) bool {
 	}
 
 	return url.Scheme == gcsblob.Scheme
+}
+
+func IsInputFileAboveCount(path string, threshold int) (bool, error) {
+	fs, err := FileReaders(path)
+	if err != nil {
+		return false, fmt.Errorf("FileReaders: %w", err)
+	}
+
+	in := MultiReader(fs...)
+
+	return ReadAboveCount(in, threshold)
+}
+
+func ReadAboveCount(r io.Reader, threshold int) (bool, error) {
+	csvReader := csv.NewReader(r)
+
+	count := 0
+	for {
+		_, err := csvReader.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return false, err
+		}
+
+		count++
+
+		if count > threshold {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

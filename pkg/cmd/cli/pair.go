@@ -14,6 +14,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const PAIRIDMinimumThreshold = 1000
+
+var ErrInputBelowThreshold = errors.New("input file does not contain enough IDs for a secure PAIR ID match")
+
 type pairConfig struct {
 	downscopedToken string
 	threads         int
@@ -73,6 +77,15 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data.")
 
+	// check if the advertiser's PAIR IDs are above the threshold
+	ok, err := io.IsInputFileAboveCount(input, PAIRIDMinimumThreshold)
+	if err != nil {
+		return fmt.Errorf("io.IsInputFileAboveCount: %w", err)
+	}
+	if !ok {
+		return ErrInputBelowThreshold
+	}
+
 	fs, err := io.FileReaders(input)
 	if err != nil {
 		return fmt.Errorf("io.FileReaders: %w", err)
@@ -123,6 +136,15 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string) error {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
+
+	// check if the publisher's PAIR IDs are above the threshold
+	ok, err := bucket.BucketObjectAboveMinimumIDCount(ctx, c.downscopedToken, c.pubTwicePath, PAIRIDMinimumThreshold)
+	if err != nil {
+		return fmt.Errorf("bucket.NewBucket: %w", err)
+	}
+	if !ok {
+		return ErrInputBelowThreshold
+	}
 
 	// defer statements are executed in Last In First Out order, so we will write the completed file last.
 	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.pubTriplePath)
