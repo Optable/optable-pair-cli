@@ -18,7 +18,10 @@ make
 make build
 ```
 
-The successfully compiled binary will be located in `bin/opair`. Alternatively, you can download the latest released binary [here](https://github.com/Optable/optable-pair-cli/releases/latest).
+The successfully compiled binary will be located in `bin/opair`.
+
+# Download binaries
+You can also download the latest pre-built binaries [here](https://github.com/Optable/optable-pair-cli/releases/latest) under the assets of the latest release.
 
 # Usage
 ## Preparing the Input File
