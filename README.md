@@ -20,6 +20,9 @@ make build
 
 The successfully compiled binary will be located in `bin/opair`.
 
+# Download binaries
+You can also download the pre-built binaries [here](https://github.com/Optable/optable-pair-cli/releases/latest) under the assets of the latest release.
+
 # Usage
 ## Preparing the Input File
 The input file that you provide to the `opair` utility should contain a line-separated list of sha256 hashed email identifiers. Suppose the input file is named `input.csv`, you can hash the identifiers using the following command:
