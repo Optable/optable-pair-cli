@@ -100,6 +100,10 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		if err != nil {
+			return
+		}
+
 		if err := b.Close(); err != nil {
 			logger.Error().Err(err).Msg("failed to close bucket")
 			return
@@ -149,6 +153,10 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		if err != nil {
+			return
+		}
+
 		if err := b.Close(); err != nil {
 			logger.Error().Err(err).Msg("failed to close bucket")
 			return
