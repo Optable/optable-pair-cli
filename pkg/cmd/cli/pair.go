@@ -85,6 +85,8 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
 	defer func() {
+		// don't complete the bucket if there was an error to prevent writing
+		// unwanted files.
 		if err != nil {
 			return
 		}
@@ -100,6 +102,8 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		// don't close the bucket if there was an error to prevent writing
+		// unwanted files.
 		if err != nil {
 			return
 		}
@@ -138,6 +142,8 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
 	defer func() {
+		// don't complete the bucket if there was an error to prevent writing
+		// unwanted files.
 		if err != nil {
 			return
 		}
@@ -153,6 +159,8 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		// don't close the bucket if there was an error to prevent writing
+		// unwanted files.
 		if err != nil {
 			return
 		}
