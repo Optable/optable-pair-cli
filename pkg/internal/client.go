@@ -55,7 +55,17 @@ func (c *CleanroomClient) GetCleanroom(ctx context.Context, sensitive bool) (*v1
 		req.View = v1.GetCleanroomRequest_SENSITIVE
 	}
 
-	return c.do(ctx, req)
+	clr, err := c.do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if clr.GetState() == v1.Cleanroom_FAILED {
+		req.View = v1.GetCleanroomRequest_FULL
+		return c.do(ctx, req)
+	}
+
+	return clr, nil
 }
 
 func (c *CleanroomClient) RefreshToken(ctx context.Context) (*v1.Cleanroom, error) {
