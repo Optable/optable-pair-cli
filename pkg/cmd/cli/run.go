@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/docker/daemon/logger"
 	v1 "github.com/optable/match-api/v2/gen/optable/external/v1"
 )
 
@@ -67,6 +68,11 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	cleanroom, err := pairCfg.cleanroomClient.GetCleanroom(ctx, false)
 	if err != nil {
 		return fmt.Errorf("GetCleanroom: %w", err)
+	}
+
+	if cleanroom.GetState() != v1.Cleanroom_ACTIVE {
+		logger.Info().Msgf("The cleanroom is an unexpected state: %s. See more details with the cleanroom get command.", cleanroom.GetState())
+		return nil
 	}
 
 	// Get the state of the publisher and advertiser
