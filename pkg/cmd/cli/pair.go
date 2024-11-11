@@ -69,7 +69,7 @@ func NewPAIRConfig(ctx context.Context, token string, threads int, key string) (
 	}, nil
 }
 
-func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
+func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data.")
 
@@ -85,6 +85,12 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
 	defer func() {
+		// don't complete the bucket if there was an error to prevent writing
+		// unwanted files.
+		if err != nil {
+			return
+		}
+
 		if err := bucketCompleter.Complete(ctx); err != nil {
 			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
 			return
@@ -96,6 +102,12 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		// don't close the bucket if there was an error to prevent writing
+		// unwanted files.
+		if err != nil {
+			return
+		}
+
 		if err := b.Close(); err != nil {
 			logger.Error().Err(err).Msg("failed to close bucket")
 			return
@@ -117,10 +129,10 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) error {
 
 	logger.Info().Msg("Step 1: Hash and encrypt the advertiser data completed.")
 
-	return nil
+	return
 }
 
-func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string) error {
+func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string) (err error) {
 	logger := zerolog.Ctx(ctx)
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs.")
 
@@ -130,6 +142,12 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
 	defer func() {
+		// don't complete the bucket if there was an error to prevent writing
+		// unwanted files.
+		if err != nil {
+			return
+		}
+
 		if err := bucketCompleter.Complete(ctx); err != nil {
 			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
 			return
@@ -141,6 +159,12 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}
 	defer func() {
+		// don't close the bucket if there was an error to prevent writing
+		// unwanted files.
+		if err != nil {
+			return
+		}
+
 		if err := b.Close(); err != nil {
 			logger.Error().Err(err).Msg("failed to close bucket")
 			return
@@ -177,7 +201,7 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 
 	logger.Info().Msg("Step 2: Re-encrypt the publisher's hashed and encrypted PAIR IDs completed.")
 
-	return nil
+	return
 }
 
 func (c *pairConfig) match(ctx context.Context, outputPath string, publisherPAIRIDsPath string) error {
