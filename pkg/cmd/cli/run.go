@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/daemon/logger"
 	v1 "github.com/optable/match-api/v2/gen/optable/external/v1"
 )
 
@@ -71,7 +70,7 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	}
 
 	if cleanroom.GetState() != v1.Cleanroom_ACTIVE {
-		logger.Info().Msgf("The cleanroom is an unexpected state: %s. See more details with the cleanroom get command.", cleanroom.GetState())
+		fmt.Printf("The cleanroom is an unexpected state: %s. See more details with the cleanroom get command.\n", cleanroom.GetState())
 		return nil
 	}
 
