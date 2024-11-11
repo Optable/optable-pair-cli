@@ -12,7 +12,13 @@ import (
 type (
 	GetCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
+		View               string `default:"sensitive" enum:"full,sensitive" help:"Specify the view of the cleanroom"`
 	}
+)
+
+const (
+	fullView      = "full"
+	sensitiveView = "sensitive"
 )
 
 func (c *GetCmd) Run(cli *CliContext) error {
@@ -32,17 +38,19 @@ func (c *GetCmd) Run(cli *CliContext) error {
 		return fmt.Errorf("failed to create clean room client: %w", err)
 	}
 
-	cleanroom, err := client.GetCleanroom(ctx, true)
+	cleanroom, err := client.GetCleanroom(ctx, c.View == sensitiveView)
 	if err != nil {
 		return err
 	}
 
-	config := cleanroom.GetConfig().GetPair()
-	shouldTokenRefresh := config.GcsToken == nil || config.GcsToken.ExpireTime.AsTime().Before(time.Now())
-	if shouldTokenRefresh {
-		cleanroom, err = client.RefreshToken(ctx)
-		if err != nil {
-			return err
+	if c.View != fullView {
+		config := cleanroom.GetConfig().GetPair()
+		shouldTokenRefresh := config.GcsToken == nil || config.GcsToken.ExpireTime.AsTime().Before(time.Now())
+		if shouldTokenRefresh {
+			cleanroom, err = client.RefreshToken(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
