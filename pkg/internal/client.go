@@ -11,7 +11,6 @@ import (
 	"time"
 
 	v1 "github.com/optable/match-api/v2/gen/optable/external/v1"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -149,7 +148,7 @@ func (c *CleanroomClient) WaitForState(ctx context.Context, states []v1.Cleanroo
 }
 
 func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanroom, error) {
-	msg, err := protojson.Marshal(req)
+	msg, err := proto.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +171,7 @@ func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanr
 	}
 
 	httpReq.Header.Add("Authorization", "Bearer "+c.token)
-	httpReq.Header.Add("Content-Type", "application/json")
+	httpReq.Header.Add("Content-Type", "application/protobuf")
 
 	httpResp, err := c.client.Do(httpReq)
 	if err != nil {
@@ -190,7 +189,7 @@ func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanr
 	}
 
 	res := &v1.Cleanroom{}
-	if err := protojson.Unmarshal(body, res); err != nil {
+	if err := proto.Unmarshal(body, res); err != nil {
 		return nil, err
 	}
 	return res, nil
