@@ -12,7 +12,7 @@ import (
 type (
 	GetCmd struct {
 		PairCleanroomToken string `arg:"" help:"The PAIR clean room token to use for the operation. You can find this by logging into the Optable PAIR Connector UI to which you were invited."`
-		View               string `default:"sensitive" enum:"full,sensitive" help:"Specify the view of the cleanroom"`
+		View               string `default:"full" enum:"full,sensitive" help:"Specify the view of the cleanroom. Valid options: [full,sensitive]"`
 	}
 )
 
