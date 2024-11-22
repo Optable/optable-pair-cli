@@ -65,6 +65,14 @@ func (c *CleanroomClient) RefreshToken(ctx context.Context) (*v1.Cleanroom, erro
 	return c.do(ctx, req)
 }
 
+func (c *CleanroomClient) AdvanceAdvertiserState(ctx context.Context) (*v1.Cleanroom, error) {
+	req := &v1.AdvanceCleanroomAdvertiserStateRequest{
+		Name: c.cleanroomName,
+	}
+
+	return c.do(ctx, req)
+}
+
 func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error) {
 	cleanroom, err := c.GetCleanroom(ctx, true)
 	if err != nil {
@@ -159,6 +167,8 @@ func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanr
 		path = "/admin/api/external/v1/cleanroom/get"
 	case *v1.RefreshTokenRequest:
 		path = "/admin/api/external/v1/cleanroom/refresh-token"
+	case *v1.AdvanceCleanroomAdvertiserStateRequest:
+		path = "/admin/api/external/v1/cleanroom/advance-advertiser-state"
 	default:
 		return nil, fmt.Errorf("unknown request type")
 	}

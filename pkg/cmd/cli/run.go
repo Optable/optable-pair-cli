@@ -163,9 +163,17 @@ func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output st
 		return fmt.Errorf("hashEncryt: %w", err)
 	}
 
+	if _, err := pairCfg.cleanroomClient.AdvanceAdvertiserState(ctx); err != nil {
+		return fmt.Errorf("failed to advance advertiser state: %w", err)
+	}
+
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
 	if err := pairCfg.reEncrypt(ctx, publisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
+	}
+
+	if _, err := pairCfg.cleanroomClient.AdvanceAdvertiserState(ctx); err != nil {
+		return fmt.Errorf("failed to advance advertiser state: %w", err)
 	}
 
 	if output == "" {
@@ -180,6 +188,10 @@ func startFromStepTwo(ctx context.Context, pairCfg *pairConfig, output string, p
 	// Step 2. Re-encrypt the publisher's hashed and encrypted PAIR IDs and output to pubTriplePath.
 	if err := pairCfg.reEncrypt(ctx, publisherData); err != nil {
 		return fmt.Errorf("reEncrypt: %w", err)
+	}
+
+	if _, err := pairCfg.cleanroomClient.AdvanceAdvertiserState(ctx); err != nil {
+		return fmt.Errorf("failed to advance advertiser state: %w", err)
 	}
 
 	if output == "" {

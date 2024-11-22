@@ -111,11 +111,26 @@ func (b *BucketCompleter) Complete(ctx context.Context) error {
 		return fmt.Errorf("failed to write completed file: %w", err)
 	}
 
+	_, err := completedWriter.Write([]byte("skip"))
+	if err != nil {
+		return fmt.Errorf("failed to write completed file: %w", err)
+	}
+
 	if err := completedWriter.Close(); err != nil {
 		return fmt.Errorf("failed to close completed file: %w", err)
 	}
 
 	return b.client.Close()
+}
+
+// Checks if the .Completed file exists in the destination bucket.
+func (b *BucketCompleter) HasCompleted(ctx context.Context) (bool, error) {
+	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
+	_, err := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).Attrs(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // NewBucketReadWriter creates a new Bucket object and opens readers and writers for the specified source and destination URLs.

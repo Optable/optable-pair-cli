@@ -84,6 +84,15 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
+	if err != nil {
+		return fmt.Errorf("completionChecker.Check: %w", err)
+	}
+	hasCompleted, err := bucketCompleter.HasCompleted(ctx)
+	if hasCompleted {
+		// nothing to do if the advertiser data has pushed the data
+		return nil
+	}
+
 	defer func() {
 		// don't complete the bucket if there was an error to prevent writing
 		// unwanted files.
@@ -95,6 +104,7 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
 			return
 		}
+
 	}()
 
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
@@ -140,6 +150,15 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 	bucketCompleter, err := bucket.NewBucketCompleter(ctx, c.downscopedToken, c.pubTriplePath)
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
+	}
+
+	hasCompleted, err := bucketCompleter.HasCompleted(ctx)
+	if err != nil {
+		return fmt.Errorf("completionChecker.Check: %w", err)
+	}
+	if hasCompleted {
+		// nothing to do if the advertiser data has pushed the data
+		return nil
 	}
 	defer func() {
 		// don't complete the bucket if there was an error to prevent writing
@@ -250,4 +269,12 @@ func (c *pairConfig) match(ctx context.Context, outputPath string, publisherPAIR
 	logger.Info().Msg("Step 3: Match the two sets of triple encrypted PAIR IDs completed.")
 
 	return nil
+}
+
+func readersFromReadClosers(rs []io.ReadCloser) []io.Reader {
+	readers := make([]io.Reader, len(rs))
+	for i, r := range rs {
+		readers[i] = r
+	}
+	return readers
 }
