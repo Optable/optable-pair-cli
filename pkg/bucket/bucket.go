@@ -111,11 +111,6 @@ func (b *BucketCompleter) Complete(ctx context.Context) error {
 		return fmt.Errorf("failed to write completed file: %w", err)
 	}
 
-	_, err := completedWriter.Write([]byte("v1"))
-	if err != nil {
-		return fmt.Errorf("failed to write completed file: %w", err)
-	}
-
 	if err := completedWriter.Close(); err != nil {
 		return fmt.Errorf("failed to close completed file: %w", err)
 	}
