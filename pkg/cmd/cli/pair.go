@@ -84,10 +84,10 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucketCompleter: %w", err)
 	}
-	if err != nil {
-		return fmt.Errorf("completionChecker.Check: %w", err)
-	}
 	hasCompleted, err := bucketCompleter.HasCompleted(ctx)
+	if err != nil {
+		return fmt.Errorf("bucketCompleter.HasCompleted: %w", err)
+	}
 	if hasCompleted {
 		// nothing to do if the advertiser data has pushed the data
 		return nil
@@ -154,7 +154,7 @@ func (c *pairConfig) reEncrypt(ctx context.Context, publisherPAIRIDsPath string)
 
 	hasCompleted, err := bucketCompleter.HasCompleted(ctx)
 	if err != nil {
-		return fmt.Errorf("completionChecker.Check: %w", err)
+		return fmt.Errorf("bucketCompleter.HasCompleted: %w", err)
 	}
 	if hasCompleted {
 		// nothing to do if the advertiser data has pushed the data
