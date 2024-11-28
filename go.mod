@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gtank/ristretto255 v0.1.2
 	github.com/optable/match v1.4.0
-	github.com/optable/match-api/v2 v2.6.0
+	github.com/optable/match-api/v2 v2.7.0
 	github.com/rs/zerolog v1.33.0
 	gocloud.dev v0.39.0
 	golang.org/x/oauth2 v0.22.0

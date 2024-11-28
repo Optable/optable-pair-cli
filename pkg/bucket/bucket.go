@@ -118,6 +118,16 @@ func (b *BucketCompleter) Complete(ctx context.Context) error {
 	return b.client.Close()
 }
 
+// Checks if the .Completed file exists in the destination bucket.
+func (b *BucketCompleter) HasCompleted(ctx context.Context) (bool, error) {
+	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
+	_, err := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).Attrs(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // NewBucketReadWriter creates a new Bucket object and opens readers and writers for the specified source and destination URLs.
 // Caller needs to call Close() on the returned Bucket object to release resources.
 func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL string, opts ...BucketOption) (*BucketReadWriter, error) {

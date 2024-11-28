@@ -138,8 +138,8 @@ github.com/mattn/go-isatty v0.0.19 h1:JITubQf0MOLdlGRuRq+jtsDlekdYPia9ZFsB8h/APP
 github.com/mattn/go-isatty v0.0.19/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/optable/match v1.4.0 h1:kyj1ty6qFIRVFsB6zTJab0RF3Duq9xqPIdld7+4IDa4=
 github.com/optable/match v1.4.0/go.mod h1:l8DT0v6TfmIT53vBbEAp+W0EFAxJ22NIEeJDz0z3WDM=
-github.com/optable/match-api/v2 v2.6.0 h1:MHZD5JWjwu7evHong9m3deyHi2hDzk77odMNtG33xbk=
-github.com/optable/match-api/v2 v2.6.0/go.mod h1:b4eo6B06BE4goiWwhJ3bNl1BTuMF6hIZdGEhbRgdEkI=
+github.com/optable/match-api/v2 v2.7.0 h1:fn4Qhrg9CoapikvrfpXhphoe03HipPnwju47c/89UpM=
+github.com/optable/match-api/v2 v2.7.0/go.mod h1:b4eo6B06BE4goiWwhJ3bNl1BTuMF6hIZdGEhbRgdEkI=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
