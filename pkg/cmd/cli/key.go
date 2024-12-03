@@ -30,7 +30,11 @@ func (c *CreateCmd) Run(cli *CmdContext) error {
 
 		fmt.Println("The following key has been generated and saved to: ", cli.config.configPath)
 	} else {
-		fmt.Printf("Key already exists at: %s. Use --force to overwrite.\n", cli.config.configPath)
+		fmt.Printf(`Key already exists at: %s.
+
+!!CAUTION!!
+You may overwrite this existing key but this action is irreversible and may invalidate any PAIR clean rooms that are currently in progress. Use --force to proceed with overwriting.
+`, cli.config.configPath)
 	}
 
 	return nil

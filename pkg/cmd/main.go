@@ -2,6 +2,7 @@ package main
 
 import (
 	"optable-pair-cli/pkg/cmd/cli"
+	"path/filepath"
 
 	"github.com/adrg/xdg"
 	"github.com/alecthomas/kong"
@@ -24,7 +25,7 @@ https://github.com/Optable/match/blob/main/pkg/pair/README.md and
 https://iabtechlab.com/pair/
 `
 
-const keyConfigPath = "opair/key/key.json"
+var keyConfigPath = filepath.Join("opair", "key", "key.json")
 
 func main() {
 	var c cli.Cli
