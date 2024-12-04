@@ -20,9 +20,9 @@ import (
 const CompletedFile = ".Completed"
 
 type (
-	// BucketReadWriter contains the storage client and read writers for the source and destination buckets.
+	// ReadWriter contains the storage client and read writers for the source and destination buckets.
 	// Optionally, it can use a file reader instead of the source bucket.
-	BucketReadWriter struct {
+	ReadWriter struct {
 		client            *storage.Client
 		FileReader        io.Reader
 		srcPrefixedBucket *prefixedBucket
@@ -30,7 +30,7 @@ type (
 		ReadWriters       []*ReadWriteCloser
 	}
 
-	BucketCompleter struct {
+	Completer struct {
 		client            *storage.Client
 		dstPrefixedBucket *prefixedBucket
 	}
@@ -52,19 +52,19 @@ type (
 		sourceURL string
 	}
 
-	// BucketOption allows to configure the behavior of the Bucket.
-	BucketOption func(*bucketOptions)
+	// Option allows to configure the behavior of the Bucket.
+	Option func(*bucketOptions)
 )
 
 // WithReader allows to specify a reader to be used for the bucket.
-func WithReader(reader io.Reader) BucketOption {
+func WithReader(reader io.Reader) Option {
 	return func(o *bucketOptions) {
 		o.reader = reader
 	}
 }
 
 // WithSourceURL allows to specify a source URL to be used for the bucket.
-func WithSourceURL(srcURL string) BucketOption {
+func WithSourceURL(srcURL string) Option {
 	return func(o *bucketOptions) {
 		o.sourceURL = srcURL
 	}
@@ -72,7 +72,7 @@ func WithSourceURL(srcURL string) BucketOption {
 
 // NewBucketCompleter creates a new BucketCompleter object which is used to signal that the transfer is complete.
 // Caller needs to call Close() on the returned BucketCompleter object to ensure
-func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL string) (*BucketCompleter, error) {
+func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL string) (*Completer, error) {
 	if downscopedToken == "" {
 		return nil, ErrTokenRequired
 	}
@@ -96,7 +96,7 @@ func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL stri
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	return &BucketCompleter{
+	return &Completer{
 		client:            client,
 		dstPrefixedBucket: dstPrefixedBucket,
 	}, nil
@@ -104,7 +104,7 @@ func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL stri
 
 // Complete writes a .Completed file to the destination bucket to signal that the transfer is complete.
 // It then closes the client.
-func (b *BucketCompleter) Complete(ctx context.Context) error {
+func (b *Completer) Complete(ctx context.Context) error {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	completedWriter := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).NewWriter(ctx)
 	if _, err := completedWriter.Write([]byte{}); err != nil {
@@ -119,7 +119,7 @@ func (b *BucketCompleter) Complete(ctx context.Context) error {
 }
 
 // Checks if the .Completed file exists in the destination bucket.
-func (b *BucketCompleter) HasCompleted(ctx context.Context) (bool, error) {
+func (b *Completer) HasCompleted(ctx context.Context) (bool, error) {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	_, err := dstBucket.Object(fmt.Sprintf("%s/%s", b.dstPrefixedBucket.prefix, CompletedFile)).Attrs(ctx)
 	if errors.Is(err, storage.ErrObjectNotExist) {
@@ -130,7 +130,7 @@ func (b *BucketCompleter) HasCompleted(ctx context.Context) (bool, error) {
 
 // NewBucketReadWriter creates a new Bucket object and opens readers and writers for the specified source and destination URLs.
 // Caller needs to call Close() on the returned Bucket object to release resources.
-func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL string, opts ...BucketOption) (*BucketReadWriter, error) {
+func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL string, opts ...Option) (*ReadWriter, error) {
 	if downscopedToken == "" {
 		return nil, ErrTokenRequired
 	}
@@ -159,7 +159,7 @@ func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL str
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	b := &BucketReadWriter{
+	b := &ReadWriter{
 		client:            client,
 		dstPrefixedBucket: dstPrefixedBucket,
 	}
@@ -182,10 +182,7 @@ func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL str
 	if reader := bucketOption.reader; reader != nil {
 		b.FileReader = reader
 
-		rw, err := b.newObjectWriteCloser(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create read writers: %w", err)
-		}
+		rw := b.newObjectWriteCloser(ctx)
 
 		b.ReadWriters = append(b.ReadWriters, rw)
 	} else {
@@ -215,7 +212,7 @@ func bucketFromObjectURL(objectURL string) (*prefixedBucket, error) {
 // newObjectReadWriteCloser lists the objects specified by the srcPrefixedBucket and opens a reader for each object,
 // except for the .Completed file.
 // It then opens a writer for each object under the same name specified by the destinationPrefix.
-func (b *BucketReadWriter) newObjectReadWriteCloser(ctx context.Context) error {
+func (b *ReadWriter) newObjectReadWriteCloser(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 	query := &storage.Query{Prefix: b.srcPrefixedBucket.prefix + "/"}
 
@@ -256,17 +253,17 @@ func (b *BucketReadWriter) newObjectReadWriteCloser(ctx context.Context) error {
 }
 
 // newObjectWriteCloser creates a new writer for the destination bucket.
-func (b *BucketReadWriter) newObjectWriteCloser(ctx context.Context) (*ReadWriteCloser, error) {
+func (b *ReadWriter) newObjectWriteCloser(ctx context.Context) *ReadWriteCloser {
 	dstBucket := b.client.Bucket(b.dstPrefixedBucket.bucket)
 	writer := dstBucket.Object(fmt.Sprintf("%s/data_%s.csv", b.dstPrefixedBucket.prefix, shortHex())).NewWriter(ctx)
 	return &ReadWriteCloser{
 		name:   CompletedFile,
 		Writer: writer,
-	}, nil
+	}
 }
 
 // Close closes the client and all read writers.
-func (b *BucketReadWriter) Close() error {
+func (b *ReadWriter) Close() error {
 	for _, rw := range b.ReadWriters {
 		if rw.Reader != nil {
 			if err := rw.Reader.Close(); err != nil {

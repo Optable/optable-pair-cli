@@ -29,7 +29,7 @@ flag.
 	`
 }
 
-func (c *DecryptCmd) Run(cli *CliContext) error {
+func (c *DecryptCmd) Run(cli *CmdContext) error {
 	ctx := cli.Context()
 	if c.NumThreads <= 0 {
 		c.NumThreads = defaultThreadCount

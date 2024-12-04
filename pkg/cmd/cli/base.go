@@ -6,7 +6,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type CliContext struct {
+type CmdContext struct {
 	ctx        context.Context
 	config     *Config
 	keyContext string
@@ -34,8 +34,8 @@ type (
 	}
 )
 
-func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
-	cliCtx := &CliContext{
+func (c *Cli) NewContext(conf *Config) (*CmdContext, error) {
+	cliCtx := &CmdContext{
 		ctx:        NewLogger("opair", c.Verbose).WithContext(context.Background()),
 		config:     conf,
 		keyContext: c.Context,
@@ -47,16 +47,16 @@ func (c *Cli) NewContext(conf *Config) (*CliContext, error) {
 // Context returns a context.Context that is protected by a timeout accessible
 // via the `--timeout` flag. Each invocation returns a *new* Context and thus
 // resets the timeout.
-func (c *CliContext) Context() context.Context {
+func (c *CmdContext) Context() context.Context {
 	return c.ctx
 }
 
-func (c *CliContext) Log() *zerolog.Logger {
+func (c *CmdContext) Log() *zerolog.Logger {
 	return zerolog.Ctx(c.ctx)
 }
 
 type HelpCmd struct{}
 
-func (c *HelpCmd) Run(cli *CliContext) error {
+func (c *HelpCmd) Run(_ *CmdContext) error {
 	return nil
 }

@@ -47,9 +47,8 @@ func loadAllKeyConfigs(configPath string) (map[string]keys.KeyConfig, error) {
 	if err := json.NewDecoder(file).Decode(&configs); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, err
-		} else {
-			return nil, fmt.Errorf("json.Decode: %w", err)
 		}
+		return nil, fmt.Errorf("json.Decode: %w", err)
 	}
 	return configs, nil
 }
@@ -73,7 +72,7 @@ func LoadKeyConfig(context, configPath string, strict bool) (*Config, error) {
 	return nil, errors.New("no key configuration found for the specified context")
 }
 
-func (c *CliContext) SaveConfig(context string) error {
+func (c *CmdContext) SaveConfig(context string) error {
 	configs, err := loadAllKeyConfigs(c.config.configPath)
 	if errors.Is(err, io.EOF) {
 		configs = make(map[string]keys.KeyConfig)
@@ -98,7 +97,7 @@ func ReadKeyConfig(context string, config *Config) (string, error) {
 		return "", err
 	}
 	if config.keyConfig.Key == "" {
-		return "", errors.New("malformed key configuration file, please regenerate the key.")
+		return "", errors.New("malformed key configuration file, please regenerate the key")
 	}
 
 	return config.keyConfig.Key, nil

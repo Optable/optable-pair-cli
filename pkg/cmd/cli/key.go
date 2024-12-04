@@ -11,7 +11,7 @@ type (
 	}
 )
 
-func (c *CreateCmd) Run(cli *CliContext) error {
+func (c *CreateCmd) Run(cli *CmdContext) error {
 	var conf *keys.KeyConfig
 
 	if cli.config.keyConfig == nil || c.Force {
@@ -23,11 +23,13 @@ func (c *CreateCmd) Run(cli *CliContext) error {
 		// overwrite the key config
 		conf = key
 		cli.config.keyConfig = conf
-		cli.SaveConfig(cli.keyContext)
+		err = cli.SaveConfig(cli.keyContext)
+		if err != nil {
+			return err
+		}
 
 		fmt.Println("The following key has been generated and saved to: ", cli.config.configPath)
 	} else {
-		conf = cli.config.keyConfig
 		fmt.Printf("Key already exists at: %s. Use --force to overwrite.\n", cli.config.configPath)
 	}
 

@@ -21,7 +21,7 @@ const (
 	sensitiveView = "sensitive"
 )
 
-func (c *GetCmd) Run(cli *CliContext) error {
+func (c *GetCmd) Run(cli *CmdContext) error {
 	ctx := cli.Context()
 
 	if c.PairCleanroomToken == "" {

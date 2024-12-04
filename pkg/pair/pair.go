@@ -29,7 +29,7 @@ var (
 )
 
 type (
-	pairIDReadWriter struct {
+	IDReadWriter struct {
 		reader    *pairIDReader
 		w         *csv.Writer
 		writeLock *sync.Mutex
@@ -58,21 +58,21 @@ func WithSecondaryWriter(w io.Writer) ReadWriterOption {
 	}
 }
 
-type PAIROperation uint8
+type Operation uint8
 
 const (
-	PAIROperationHashEncrypt PAIROperation = iota
-	PAIROperationReEncrypt
-	PAIROperationDecrypt
+	OperationHashEncrypt Operation = iota
+	OperationReEncrypt
+	OperationDecrypt
 )
 
-func (p PAIROperation) String() string {
+func (p Operation) String() string {
 	switch p {
-	case PAIROperationHashEncrypt:
+	case OperationHashEncrypt:
 		return "HashEncrypt"
-	case PAIROperationReEncrypt:
+	case OperationReEncrypt:
 		return "ReEncrypt"
-	case PAIROperationDecrypt:
+	case OperationDecrypt:
 		return "Decrypt"
 	default:
 		return "Unknown"
@@ -84,7 +84,7 @@ type pairOps struct {
 	shuffle bool
 }
 
-func NewPAIRIDReadWriter(r io.Reader, w io.Writer, opts ...ReadWriterOption) (*pairIDReadWriter, error) {
+func NewPAIRIDReadWriter(r io.Reader, w io.Writer, opts ...ReadWriterOption) (*IDReadWriter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	rwOpt := &readWriterOption{}
@@ -96,7 +96,7 @@ func NewPAIRIDReadWriter(r io.Reader, w io.Writer, opts ...ReadWriterOption) (*p
 		w = io.MultiWriter(w, rwOpt.secondaryWriter)
 	}
 
-	p := &pairIDReadWriter{
+	p := &IDReadWriter{
 		w:         csv.NewWriter(w),
 		writeLock: &sync.Mutex{},
 		reader: &pairIDReader{
@@ -159,19 +159,19 @@ func readPAIRIDs(ctx context.Context, p *pairIDReader) {
 	}
 }
 
-func (p *pairIDReadWriter) HashEncrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
-	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationHashEncrypt)
+func (p *IDReadWriter) HashEncrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
+	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, OperationHashEncrypt)
 }
 
-func (p *pairIDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
-	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationReEncrypt)
+func (p *IDReadWriter) ReEncrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
+	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, OperationReEncrypt)
 }
 
-func (p *pairIDReadWriter) Decrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
-	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, PAIROperationDecrypt)
+func (p *IDReadWriter) Decrypt(ctx context.Context, numWorkers int, salt, privateKey string) error {
+	return runPAIROperation(ctx, p, numWorkers, salt, privateKey, OperationDecrypt)
 }
 
-func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, salt, privateKey string, op PAIROperation) error {
+func runPAIROperation(ctx context.Context, p *IDReadWriter, numWorkers int, salt, privateKey string, op Operation) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
 	defer cancel()
@@ -225,12 +225,12 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 				}
 
 				switch op {
-				case PAIROperationHashEncrypt:
+				case OperationHashEncrypt:
 					operation.do = pk.Encrypt
-				case PAIROperationReEncrypt:
+				case OperationReEncrypt:
 					operation.do = pk.ReEncrypt
 					operation.shuffle = true
-				case PAIROperationDecrypt:
+				case OperationDecrypt:
 					operation.do = pk.Decrypt
 				default:
 					err := errors.New("invalid operation")
@@ -259,7 +259,7 @@ func runPAIROperation(ctx context.Context, p *pairIDReadWriter, numWorkers int, 
 
 // operate reads a batch of records from the input reader,
 // runs the PAIR operation on the records and writes to the underlying writer.
-func (p *pairIDReadWriter) operate(op *pairOps) error {
+func (p *IDReadWriter) operate(op *pairOps) error {
 	ids, ok := <-p.reader.batch
 	if !ok {
 		return p.reader.err
@@ -267,16 +267,16 @@ func (p *pairIDReadWriter) operate(op *pairOps) error {
 
 	// Shuffle the ids in place before processing
 	// Note that we already receive the batch of IDs
-	// in a psuedo-random order from the reader.
+	// in a pseudo-random order from the reader.
 	if op.shuffle {
 		pair.Shuffle(ids)
 	}
 
 	records := make([][]string, 0, len(ids))
 	for _, id := range ids {
-		pairID, err := op.do([]byte(id))
+		pairID, err := op.do(id)
 		if err != nil {
-			return fmt.Errorf("Encrypt: %w", err)
+			return fmt.Errorf("encrypt: %w", err)
 		}
 
 		records = append(records, []string{string(pairID)})

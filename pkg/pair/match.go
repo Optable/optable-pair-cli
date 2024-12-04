@@ -2,7 +2,6 @@ package pair
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -19,7 +18,7 @@ import (
 )
 
 type (
-	matcher struct {
+	Matcher struct {
 		reader      *pairIDReader
 		writer      *writer
 		intersected chan []byte
@@ -34,10 +33,10 @@ type (
 	}
 )
 
-func NewMatcher(adv, pub []io.Reader, out string) (*matcher, error) {
+func NewMatcher(adv, pub []io.Reader, out string) (*Matcher, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	m := &matcher{
+	m := &Matcher{
 		reader: &pairIDReader{
 			r:         csv.NewReader(io.MultiReader(pub...)),
 			batchSize: batchSize,
@@ -100,10 +99,6 @@ func NewMatcher(adv, pub []io.Reader, out string) (*matcher, error) {
 	return m, nil
 }
 
-func normalize(id []byte) string {
-	return base64.StdEncoding.EncodeToString(id)
-}
-
 func (w *writer) NewWriter(index int) (*csv.Writer, error) {
 	if w.path == "" {
 		return csv.NewWriter(os.Stdout), nil
@@ -129,7 +124,7 @@ func (w *writer) Close() error {
 	return nil
 }
 
-func (m *matcher) Match(ctx context.Context, numWorkers int, salt, privateKey string) error {
+func (m *Matcher) Match(ctx context.Context, numWorkers int, salt, privateKey string) error {
 	// Cancel the context when the operation needs more than an 4 hours
 	ctx, cancel := context.WithTimeout(ctx, maxOperationRunTime)
 	defer cancel()

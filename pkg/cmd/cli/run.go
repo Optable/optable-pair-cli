@@ -46,7 +46,7 @@ last successful step.
 `
 }
 
-func (c *RunCmd) Run(cli *CliContext) error {
+func (c *RunCmd) Run(cli *CmdContext) error {
 	ctx := cli.Context()
 
 	advertiserKey, err := ReadKeyConfig(cli.keyContext, cli.config)
@@ -59,7 +59,7 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	}
 
 	// instantiate the pair configuration
-	pairCfg, err := NewPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
+	pairCfg, err := newPAIRConfig(ctx, c.PairCleanroomToken, c.NumThreads, advertiserKey)
 	if err != nil {
 		return err
 	}
@@ -81,6 +81,8 @@ func (c *RunCmd) Run(cli *CliContext) error {
 			publisherState = p.GetState()
 		case v1.Cleanroom_Participant_ADVERTISER:
 			advertiserState = p.GetState()
+		case v1.Cleanroom_Participant_ROLE_UNSPECIFIED:
+			return fmt.Errorf("role unspecified for participant")
 		}
 	}
 
@@ -92,7 +94,10 @@ func (c *RunCmd) Run(cli *CliContext) error {
 	// 3. Match the two sets of triple encrypted PAIR IDs and output the intersected PAIR IDs to output.
 	//
 	// Depending on the state of the publisher and advertiser, we can start from any of the steps.
-	action := actionFromStates(publisherState, advertiserState)
+	action, err := actionFromStates(publisherState, advertiserState)
+	if err != nil {
+		return err
+	}
 
 	if action.contributeAdvertiserData {
 		return startFromStepOne(ctx, pairCfg, c.Input, c.Output, c.PublisherPAIRIDs)
@@ -121,40 +126,52 @@ type action struct {
 	matchData bool
 }
 
-func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_State) action {
+func actionFromStates(publisherState, advertiserState v1.Cleanroom_Participant_State) (*action, error) {
 	switch publisherState {
 	case v1.Cleanroom_Participant_DATA_CONTRIBUTED:
 		if advertiserState == v1.Cleanroom_Participant_INVITED {
-			return action{contributeAdvertiserData: true}
+			return &action{contributeAdvertiserData: true}, nil
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_CONTRIBUTED {
-			return action{reEncryptPublisherData: true}
+			return &action{reEncryptPublisherData: true}, nil
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: true}
+			return &action{matchData: true}, nil
 		}
 	case v1.Cleanroom_Participant_DATA_TRANSFORMING:
 		fallthrough
 	case v1.Cleanroom_Participant_DATA_TRANSFORMED:
 		if advertiserState == v1.Cleanroom_Participant_DATA_CONTRIBUTED {
-			return action{reEncryptPublisherData: true}
+			return &action{reEncryptPublisherData: true}, nil
 		}
 
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: true}
+			return &action{matchData: true}, nil
 		}
 	case v1.Cleanroom_Participant_RUNNING:
 		fallthrough
 	case v1.Cleanroom_Participant_SUCCEEDED:
 		if advertiserState == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-			return action{matchData: true}
+			return &action{matchData: true}, nil
 		}
+	case v1.Cleanroom_Participant_STATE_UNSPECIFIED:
+		fallthrough
+	case v1.Cleanroom_Participant_FAILED:
+		fallthrough
+	case v1.Cleanroom_Participant_REJECTED:
+		fallthrough
+	case v1.Cleanroom_Participant_REVOKED:
+		return nil, fmt.Errorf("invalid publisher state: %s", publisherState)
+	case v1.Cleanroom_Participant_INVITED:
+		fallthrough
+	case v1.Cleanroom_Participant_DATA_CONTRIBUTING:
+		fallthrough
 	default:
 	}
 
-	return action{}
+	return &action{}, nil
 }
 
 func startFromStepOne(ctx context.Context, pairCfg *pairConfig, input, output string, publisherData string) error {
