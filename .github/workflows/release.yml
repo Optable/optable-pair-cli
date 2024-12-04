@@ -12,6 +12,20 @@ env:
   GOPATH: ${{ github.workspace }}
 
 jobs:
+  pre-commit:
+    name: Pre-commit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v3
+      - name: Setup Pre-commit
+        uses: pre-commit/action@v3.0.1
+      - name: Install pre-commit hook environments
+        run: pre-commit install-hooks
+      - name: Run all pre-commit hooks
+        run: pre-commit run --all-files
   build-release:
     name: Release pushed tag
     runs-on: ubuntu-24.04
