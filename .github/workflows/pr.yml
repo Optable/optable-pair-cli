@@ -30,8 +30,8 @@ jobs:
         uses: actions/setup-python@v3
       - name: Setup Pre-commit
         uses: pre-commit/action@v3.0.1
-      - name: Install pre-commit hook environments
-        run: pre-commit install-hooks
+      - name: Install pre-commit
+        run: pre-commit install
       - name: Run all pre-commit hooks
         run: SKIP=golangci-lint pre-commit run --all-files
   build:
