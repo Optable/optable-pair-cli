@@ -12,6 +12,30 @@ env:
   GOPATH: ${{ github.workspace }}
 
 jobs:
+  golangci-lint:
+    name: GolangCI Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
+  pre-commit:
+    name: Pre-commit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v3
+      - name: Setup Pre-commit
+        run: pip install pre-commit
+      - name: Install pre-commit
+        run: pre-commit install
+      - name: Run all pre-commit hooks
+        run: SKIP=golangci-lint pre-commit run --all-files
   build-release:
     name: Release pushed tag
     runs-on: ubuntu-24.04
