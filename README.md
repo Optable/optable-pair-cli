@@ -47,3 +47,15 @@ bin/opair cleanroom run $token -i hashed_input.csv
 ```
 
 You can optionally provide the argument `-o` or `--output` to specify the output directory, which will then compute the intersection of the triple encrypted PAIR IDs locally on your machine, decrypt it using the private key, and store the result in the specified directory. You can also use the argument `-n` or `--num-threads` to control the concurrency of the operation.
+
+# Pre-commit and Linting
+
+This repsitory uses pre-commit and golangci-lint. To install pre-commit please run the following:
+
+```
+pip install pre-commit
+```
+
+Then run: `pre-commit install`
+
+And to install golangci-lint please follow the instructions [here](https://golangci-lint.run/welcome/install/#local-installation).

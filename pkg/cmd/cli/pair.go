@@ -26,7 +26,7 @@ type pairConfig struct {
 	pubTriplePath   string
 }
 
-func NewPAIRConfig(ctx context.Context, token string, threads int, key string) (*pairConfig, error) {
+func newPAIRConfig(ctx context.Context, token string, threads int, key string) (*pairConfig, error) {
 	if token == "" {
 		return nil, errors.New("pair clean room token is required")
 	}
@@ -104,7 +104,6 @@ func (c *pairConfig) hashEncryt(ctx context.Context, input string) (err error) {
 			logger.Error().Err(err).Msg("failed to write .Completed file to bucket")
 			return
 		}
-
 	}()
 
 	b, err := bucket.NewBucketReadWriter(ctx, c.downscopedToken, c.advTwicePath, bucket.WithReader(in))
@@ -239,7 +238,7 @@ func (c *pairConfig) match(ctx context.Context, outputPath string, publisherPAIR
 		}
 	}
 
-	opts := []bucket.BucketOption{}
+	opts := []bucket.Option{}
 	if publisherPAIRIDsPath != "" {
 		fs, err := io.FileReaders(publisherPAIRIDsPath)
 		if err != nil {
@@ -251,7 +250,7 @@ func (c *pairConfig) match(ctx context.Context, outputPath string, publisherPAIR
 		opts = append(opts, bucket.WithSourceURL(c.pubTriplePath))
 	}
 
-	b, err := bucket.NewBucketReaders(ctx, c.downscopedToken, c.advTriplePath, opts...)
+	b, err := bucket.NewReaders(ctx, c.downscopedToken, c.advTriplePath, opts...)
 	if err != nil {
 		return fmt.Errorf("bucket.NewBucket: %w", err)
 	}

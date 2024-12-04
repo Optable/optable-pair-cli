@@ -21,8 +21,8 @@ var (
 
 type (
 
-	//BucketReaders contains the storage client and readers from two source buckets.
-	BucketReaders struct {
+	// Readers contains the storage client and readers from two source buckets.
+	Readers struct {
 		client            *storage.Client
 		AdvReader         []io.ReadCloser
 		PubReader         []io.ReadCloser
@@ -32,7 +32,7 @@ type (
 	}
 )
 
-func NewBucketReaders(ctx context.Context, downScopedToken, advURL string, opts ...BucketOption) (*BucketReaders, error) {
+func NewReaders(ctx context.Context, downScopedToken, advURL string, opts ...Option) (*Readers, error) {
 	if downScopedToken == "" {
 		return nil, errors.New("downscopedToken is required")
 	}
@@ -61,7 +61,7 @@ func NewBucketReaders(ctx context.Context, downScopedToken, advURL string, opts 
 		return nil, fmt.Errorf("failed to parse destination URL: %w", err)
 	}
 
-	bucket := &BucketReaders{
+	bucket := &Readers{
 		client:            client,
 		AdvPrefixedBucket: advPrefixedBucket,
 	}
@@ -73,7 +73,6 @@ func NewBucketReaders(ctx context.Context, downScopedToken, advURL string, opts 
 		}
 
 		bucket.PubPrefixedBucket = pubPrefixedBucket
-
 	}
 
 	if reader := bucketOption.reader; reader != nil {
@@ -89,7 +88,7 @@ func NewBucketReaders(ctx context.Context, downScopedToken, advURL string, opts 
 
 // newObjectReaders lists the objects specified by the advPrefixedBucket and pubPrefixedBucket and opens a reader for each object,
 // except for the .Completed file.
-func (b *BucketReaders) newObjectReaders(ctx context.Context) error {
+func (b *Readers) newObjectReaders(ctx context.Context) error {
 	advReaders, err := readersFromPrefixedBucket(ctx, b.client, b.AdvPrefixedBucket)
 	if err != nil {
 		return err
@@ -150,7 +149,7 @@ func readersFromPrefixedBucket(ctx context.Context, client *storage.Client, pBuc
 }
 
 // Close closes the client and all read writers.
-func (b *BucketReaders) Close() error {
+func (b *Readers) Close() error {
 	for _, rc := range b.AdvReader {
 		if err := rc.Close(); err != nil {
 			return err

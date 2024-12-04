@@ -1,0 +1,49 @@
+run:
+  timeout: 15m
+  build-tags:
+    - system
+    - gorules
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+linters:
+  # explicitly specify enabled lints to ease upgrades
+  disable-all: true
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errorlint
+    - exhaustive
+    - copyloopvar
+    - goconst
+    - gocritic
+    - gofmt
+    - goimports
+    - goprintffuncname
+    - gosimple
+    - govet
+    - ineffassign
+    - makezero
+    - misspell
+    - nilerr
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - paralleltest
+    - prealloc
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - stylecheck
+    - testifylint
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace

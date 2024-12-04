@@ -38,7 +38,7 @@ func privateKeyFromString(mode pair.PAIRMode, key string) ([]byte, error) {
 	default:
 	}
 
-	return nil, fmt.Errorf("unsupported mode: %s", mode)
+	return nil, fmt.Errorf("unsupported mode: %d", mode)
 }
 
 func newRistretto255Key() ([]byte, error) {

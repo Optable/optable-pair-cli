@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/optable/match/pkg/pair"
 
+	// Register the SHA256 hash function
 	_ "crypto/sha256"
 )
 
