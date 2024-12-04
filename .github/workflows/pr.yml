@@ -24,6 +24,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: '${{ env.GOPATH }}/go.mod'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
       - name: Install pre-commit hook environments
         run: pre-commit install-hooks
       - name: Run all pre-commit hooks
