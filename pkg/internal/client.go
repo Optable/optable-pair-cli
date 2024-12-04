@@ -17,7 +17,15 @@ import (
 const waitTime = 1 * time.Hour
 
 type (
-	CleanroomClient struct {
+	CleanroomClient interface {
+		GetCleanroom(ctx context.Context, sensitive bool) (*v1.Cleanroom, error)
+		RefreshToken(ctx context.Context) (*v1.Cleanroom, error)
+		AdvanceAdvertiserState(ctx context.Context) (*v1.Cleanroom, error)
+		ReadyForMatch(ctx context.Context) error
+		GetDownScopedToken(ctx context.Context) (string, error)
+		GetConfig(ctx context.Context) (*v1.Cleanroom_Config_PairConfig, error)
+	}
+	cleanroomClient struct {
 		client        *http.Client
 		url           string
 		token         string
@@ -25,7 +33,7 @@ type (
 	}
 )
 
-func NewCleanroomClient(token *CleanroomToken) (*CleanroomClient, error) {
+func NewCleanroomClient(token *CleanroomToken) (CleanroomClient, error) {
 	hostURL := strings.TrimRight(token.IssuerHost, "/")
 	host, err := url.Parse(hostURL)
 	if err != nil {
@@ -36,7 +44,7 @@ func NewCleanroomClient(token *CleanroomToken) (*CleanroomClient, error) {
 		hostURL = "https://" + hostURL
 	}
 
-	return &CleanroomClient{
+	return &cleanroomClient{
 		client:        http.DefaultClient,
 		token:         token.Raw,
 		cleanroomName: token.Cleanroom,
@@ -44,7 +52,7 @@ func NewCleanroomClient(token *CleanroomToken) (*CleanroomClient, error) {
 	}, nil
 }
 
-func (c *CleanroomClient) GetCleanroom(ctx context.Context, sensitive bool) (*v1.Cleanroom, error) {
+func (c *cleanroomClient) GetCleanroom(ctx context.Context, sensitive bool) (*v1.Cleanroom, error) {
 	req := &v1.GetCleanroomRequest{
 		Name: c.cleanroomName,
 		View: v1.GetCleanroomRequest_FULL,
@@ -57,7 +65,7 @@ func (c *CleanroomClient) GetCleanroom(ctx context.Context, sensitive bool) (*v1
 	return c.do(ctx, req)
 }
 
-func (c *CleanroomClient) RefreshToken(ctx context.Context) (*v1.Cleanroom, error) {
+func (c *cleanroomClient) RefreshToken(ctx context.Context) (*v1.Cleanroom, error) {
 	req := &v1.RefreshTokenRequest{
 		Name: c.cleanroomName,
 	}
@@ -65,7 +73,7 @@ func (c *CleanroomClient) RefreshToken(ctx context.Context) (*v1.Cleanroom, erro
 	return c.do(ctx, req)
 }
 
-func (c *CleanroomClient) AdvanceAdvertiserState(ctx context.Context) (*v1.Cleanroom, error) {
+func (c *cleanroomClient) AdvanceAdvertiserState(ctx context.Context) (*v1.Cleanroom, error) {
 	req := &v1.AdvanceCleanroomAdvertiserStateRequest{
 		Name: c.cleanroomName,
 	}
@@ -73,7 +81,7 @@ func (c *CleanroomClient) AdvanceAdvertiserState(ctx context.Context) (*v1.Clean
 	return c.do(ctx, req)
 }
 
-func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error) {
+func (c *cleanroomClient) GetDownScopedToken(ctx context.Context) (string, error) {
 	cleanroom, err := c.GetCleanroom(ctx, true)
 	if err != nil {
 		return "", err
@@ -96,7 +104,7 @@ func (c *CleanroomClient) GetDownScopedToken(ctx context.Context) (string, error
 	return "", fmt.Errorf("token not found")
 }
 
-func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_PairConfig, error) {
+func (c *cleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_PairConfig, error) {
 	cleanroom, err := c.GetCleanroom(ctx, false)
 	if err != nil {
 		return nil, err
@@ -105,8 +113,8 @@ func (c *CleanroomClient) GetConfig(ctx context.Context) (*v1.Cleanroom_Config_P
 	return cleanroom.GetConfig().GetPair(), nil
 }
 
-func (c *CleanroomClient) ReadyForMatch(ctx context.Context) error {
-	return c.WaitForState(
+func (c *cleanroomClient) ReadyForMatch(ctx context.Context) error {
+	return c.waitForState(
 		ctx,
 		[]v1.Cleanroom_Participant_State{
 			v1.Cleanroom_Participant_DATA_TRANSFORMED,
@@ -116,7 +124,7 @@ func (c *CleanroomClient) ReadyForMatch(ctx context.Context) error {
 	)
 }
 
-func (c *CleanroomClient) WaitForState(ctx context.Context, states []v1.Cleanroom_Participant_State) error {
+func (c *cleanroomClient) waitForState(ctx context.Context, states []v1.Cleanroom_Participant_State) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -155,7 +163,7 @@ func (c *CleanroomClient) WaitForState(ctx context.Context, states []v1.Cleanroo
 	}
 }
 
-func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanroom, error) {
+func (c *cleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanroom, error) {
 	msg, err := proto.Marshal(req)
 	if err != nil {
 		return nil, err

@@ -54,3 +54,8 @@ clean-bin:
 .PHONY: clean-release
 clean-release:
 	rm -f release/*
+
+.PHONY: gen-mock
+gen-mock:
+	go install github.com/matryer/moq@latest
+	moq -out ./pkg/internal/client_mock.go -stub ./pkg/internal CleanroomClient:CleanroomClientMock

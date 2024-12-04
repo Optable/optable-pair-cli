@@ -19,7 +19,7 @@ type pairConfig struct {
 	threads         int
 	salt            string
 	key             string
-	cleanroomClient *internal.CleanroomClient
+	cleanroomClient internal.CleanroomClient
 	advTwicePath    string
 	advTriplePath   string
 	pubTwicePath    string
