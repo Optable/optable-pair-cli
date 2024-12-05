@@ -38,7 +38,7 @@ darwin-amd64:
 darwin-arm64:
 	make clean-bin ;\
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 make build ;\
-       	mkdir -p release && cp bin/opair release/opair-darwin-arm64
+	mkdir -p release && cp bin/opair release/opair-darwin-arm64
 
 .PHONY: linux
 linux:
