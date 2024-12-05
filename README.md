@@ -17,8 +17,21 @@ make
 # or more specifically:
 make build
 ```
-
 The successfully compiled binary will be located in `bin/opair`.
+
+## Build on windows
+To build the CLI on windows, you would need to first install make.
+You can either install make directly [here](https://gnuwin32.sourceforge.net/packages/make.htm) or through [chocolatey](https://chocolatey.org/install), in which case, you can run the following command in **power shell**:
+```bash
+choco install make
+```
+
+After installing make, you can run the following command in **power shell** to build the CLI:
+```bash
+make
+```
+The successfully compiled binary will be located in `bin\opair.exe`.
+
 
 # Download binaries
 You can also download the pre-built binaries [here](https://github.com/Optable/optable-pair-cli/releases/latest) under the assets of the latest release.
