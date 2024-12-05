@@ -7,12 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"math/big"
 	"optable-pair-cli/pkg/keys"
-	"strings"
 	"testing"
 
 	"github.com/optable/match/pkg/pair"
@@ -203,33 +200,14 @@ func TestPAIRIDReadWriter_InputBelowThreshold(t *testing.T) {
 
 func requireGenRandomHashedEmails(t *testing.T, emailsCount int) []string {
 	t.Helper()
-	emails := make([]string, emailsCount)
-	domains := []string{"example.com", "test.org", "sample.net", "demo.co", "mail.io"}
-
-	randomInt := func(maximum int) int {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(maximum)))
-		require.NoError(t, err)
-		return int(n.Int64())
+	shaEncoder := sha256.New()
+	hems := make([]string, emailsCount)
+	for i := range hems {
+		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
+		hem := shaEncoder.Sum(nil)
+		hems[i] = fmt.Sprintf("%x", hem)
 	}
-
-	randomString := func(length int) string {
-		const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-		var sb strings.Builder
-		for i := 0; i < length; i++ {
-			randomIndex := randomInt(len(charset))
-			sb.WriteByte(charset[randomIndex])
-		}
-		return sb.String()
-	}
-
-	for i := 0; i < emailsCount; i++ {
-		localPart := randomString(10)
-		domain := domains[randomInt(len(domains))]
-		email := fmt.Sprintf("%s@%s", localPart, domain)
-		sha256Hash := sha256.Sum256([]byte(email))
-		emails[i] = hex.EncodeToString(sha256Hash[:])
-	}
-	return emails
+	return hems
 }
 
 func requireWriteEmails(t *testing.T, w io.Writer, emails []string) {
