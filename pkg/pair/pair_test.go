@@ -20,6 +20,7 @@ import (
 )
 
 func TestPAIRIDReadWriter_HashEncrypt(t *testing.T) {
+	t.Parallel()
 	// arrange
 	lenEmails := 1001
 	ctx := context.Background()
@@ -52,6 +53,7 @@ func TestPAIRIDReadWriter_HashEncrypt(t *testing.T) {
 }
 
 func TestPAIRIDReadWriter_ReEncrypt(t *testing.T) {
+	t.Parallel()
 	// arrange
 	lenEmails := 10000
 	ctx := context.Background()
@@ -90,7 +92,7 @@ func TestPAIRIDReadWriter_ReEncrypt(t *testing.T) {
 			notShuffled++
 		}
 
-		// must find the encrypted email in the expected list
+		// must find the encrypted email in the expected slice
 		found := false
 		for _, e := range expected {
 			if e == testResult[0] {
@@ -105,6 +107,7 @@ func TestPAIRIDReadWriter_ReEncrypt(t *testing.T) {
 }
 
 func TestPAIRIDReadWriter_HashDecrypt(t *testing.T) {
+	t.Parallel()
 	// arrange
 	lenEmails := 1001
 	ctx := context.Background()
@@ -137,11 +140,12 @@ func TestPAIRIDReadWriter_HashDecrypt(t *testing.T) {
 
 	for i, testResult := range testResults {
 		require.Len(t, testResult, 1, "must contain one csv column")
-		require.Equal(t, expected[i], string(testResult[0]), "encrypted email must match")
+		require.Equal(t, expected[i], testResult[0], "encrypted email must match")
 	}
 }
 
 func TestPAIRIDReadWriter_InputBelowThreshold(t *testing.T) {
+	t.Parallel()
 	// arrange
 	lenEmails := 999
 	ctx := context.Background()
@@ -152,6 +156,7 @@ func TestPAIRIDReadWriter_InputBelowThreshold(t *testing.T) {
 	twiceEncryptedEmails := requireReEncryptEmails(t, encryptedEmails, salt, key)
 
 	t.Run("HashEncrypt", func(t *testing.T) {
+		t.Parallel()
 		r, w := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
 		// set emails in csv format for PAIRIDReadWriter to read
@@ -166,6 +171,7 @@ func TestPAIRIDReadWriter_InputBelowThreshold(t *testing.T) {
 	})
 
 	t.Run("ReEncrypt", func(t *testing.T) {
+		t.Parallel()
 		r, w := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
 		// set encrypted emails in csv format for PAIRIDReadWriter to read
@@ -180,6 +186,7 @@ func TestPAIRIDReadWriter_InputBelowThreshold(t *testing.T) {
 	})
 
 	t.Run("Decrypt", func(t *testing.T) {
+		t.Parallel()
 		r, w := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
 		// set twice encrypted emails in csv format for PAIRIDReadWriter to read
