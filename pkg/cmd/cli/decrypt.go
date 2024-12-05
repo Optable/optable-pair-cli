@@ -56,7 +56,7 @@ func (c *DecryptCmd) Run(cli *CmdContext) error {
 	}
 
 	// no need for original salt
-	salt := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	salt := base64.StdEncoding.EncodeToString(make([]byte, pair.SHA256SaltSize))
 
 	// Decrypt and write
 	if err := d.Decrypt(ctx, c.NumThreads, salt, advertiserKey); err != nil {
