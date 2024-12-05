@@ -42,13 +42,13 @@ func TestPAIRIDReadWriter_HashEncrypt(t *testing.T) {
 
 	// assert
 	csvData := csv.NewReader(w)
-	testResults, err := csvData.ReadAll()
+	hashEncryptedData, err := csvData.ReadAll()
 	require.NoError(t, err, "must read csv data")
-	require.Len(t, testResults, len(expected), "must contain all emails")
+	require.Len(t, hashEncryptedData, len(expected), "must contain all emails")
 
-	for i, testResult := range testResults {
-		require.Len(t, testResult, 1, "must contain one csv column")
-		require.Equal(t, expected[i], testResult[0], "encrypted email must match")
+	for i, hashEncrypted := range hashEncryptedData {
+		require.Len(t, hashEncrypted, 1, "must contain one csv column")
+		require.Equal(t, expected[i], hashEncrypted[0], "encrypted email must match")
 	}
 }
 
@@ -79,23 +79,23 @@ func TestPAIRIDReadWriter_ReEncrypt(t *testing.T) {
 
 	// assert
 	csvData := csv.NewReader(w)
-	testResults, err := csvData.ReadAll()
+	reEncryptedData, err := csvData.ReadAll()
 	require.NoError(t, err, "must read csv data")
-	require.Len(t, testResults, len(expected), "must contain all emails")
+	require.Len(t, reEncryptedData, len(expected), "must contain all emails")
 
 	notShuffled := 0
-	for i, testResult := range testResults {
-		require.Len(t, testResult, 1, "must contain one csv column")
+	for i, reEncrypted := range reEncryptedData {
+		require.Len(t, reEncrypted, 1, "must contain one csv column")
 
 		// check how many emails stay at the same place
-		if testResult[0] == expected[i] {
+		if reEncrypted[0] == expected[i] {
 			notShuffled++
 		}
 
 		// must find the encrypted email in the expected slice
 		found := false
 		for _, e := range expected {
-			if e == testResult[0] {
+			if e == reEncrypted[0] {
 				found = true
 				break
 			}
@@ -134,13 +134,13 @@ func TestPAIRIDReadWriter_HashDecrypt(t *testing.T) {
 
 	// assert
 	csvData := csv.NewReader(w)
-	testResults, err := csvData.ReadAll()
+	decryptedData, err := csvData.ReadAll()
 	require.NoError(t, err, "must read csv data")
-	require.Len(t, testResults, len(expected), "must contain all emails")
+	require.Len(t, decryptedData, len(expected), "must contain all emails")
 
-	for i, testResult := range testResults {
-		require.Len(t, testResult, 1, "must contain one csv column")
-		require.Equal(t, expected[i], testResult[0], "encrypted email must match")
+	for i, decrypted := range decryptedData {
+		require.Len(t, decrypted, 1, "must contain one csv column")
+		require.Equal(t, expected[i], decrypted[0], "encrypted email must match")
 	}
 }
 
