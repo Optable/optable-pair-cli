@@ -96,7 +96,7 @@ func ReadKeyConfig(context string, config *Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if config.keyConfig.Key == "" {
+	if config.keyConfig == nil || config.keyConfig.Key == "" {
 		return "", errors.New("malformed key configuration file, please regenerate the key")
 	}
 

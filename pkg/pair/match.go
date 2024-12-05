@@ -8,6 +8,7 @@ import (
 	"optable-pair-cli/pkg/io"
 	"optable-pair-cli/pkg/keys"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -104,8 +105,8 @@ func (w *writer) NewWriter(index int) (*csv.Writer, error) {
 		return csv.NewWriter(os.Stdout), nil
 	}
 
-	p := strings.TrimRight(w.path, "/")
-	f, err := os.Create(fmt.Sprintf("%s/result_%d.csv", p, index))
+	p := strings.TrimRight(w.path, string(filepath.Separator))
+	f, err := os.Create(filepath.Join(p, fmt.Sprintf("result_%d.csv", index)))
 	if err != nil {
 		return nil, err
 	}
