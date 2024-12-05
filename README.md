@@ -21,12 +21,12 @@ The successfully compiled binary will be located in `bin/opair`.
 
 ## Build on windows
 To build the CLI on windows, you would need to first install make.
-You can either install make directly [here](https://gnuwin32.sourceforge.net/packages/make.htm) or through [chocolatey](https://chocolatey.org/install), in which case, you can run the following command in power shell:
+You can either install make directly [here](https://gnuwin32.sourceforge.net/packages/make.htm) or through [chocolatey](https://chocolatey.org/install), in which case, you can run the following command in **power shell**:
 ```bash
 choco install make
 ```
 
-After installing make, you can run the following command in power shell to build the CLI:
+After installing make, you can run the following command in **power shell** to build the CLI:
 ```bash
 make
 ```
