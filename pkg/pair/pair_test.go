@@ -206,8 +206,8 @@ func requireGenRandomHashedEmails(t *testing.T, emailsCount int) []string {
 	emails := make([]string, emailsCount)
 	domains := []string{"example.com", "test.org", "sample.net", "demo.co", "mail.io"}
 
-	randomInt := func(max int) int {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	randomInt := func(maximum int) int {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(maximum)))
 		require.NoError(t, err)
 		return int(n.Int64())
 	}
