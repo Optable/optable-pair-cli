@@ -22,6 +22,8 @@ const (
 	minimumIDCount = 1000
 
 	maxOperationRunTime = 4 * time.Hour
+
+	SHA256SaltSize = 32
 )
 
 var (
