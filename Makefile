@@ -1,7 +1,9 @@
-GO=$(shell which go)
-RM=rm -f ./bin/*
 # BUILD_VERSION is the latest tag.
 BUILD_VERSION := $(shell git describe --tags --always)
+GO=$(shell which go)
+RM=rm -f ./bin/*
+
+# windows specific commands
 ifeq ($(OS), Windows_NT)
 	MV=move bin\opair bin\opair.exe
 	GO=go
@@ -11,7 +13,6 @@ endif
 #
 # Go sources management.
 #
-
 
 .PHONY: build
 build: clean-bin
