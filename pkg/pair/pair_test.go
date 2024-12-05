@@ -103,7 +103,7 @@ func TestPAIRIDReadWriter_ReEncrypt(t *testing.T) {
 		require.True(t, found, "re-encrypted email must match")
 	}
 
-	require.Less(t, float64(notShuffled), float64(lenEmails)*0.01, "must shuffle more then 99% of emails")
+	require.Less(t, float64(notShuffled), float64(lenEmails)*0.01, "must shuffle more than 99% of emails")
 }
 
 func TestPAIRIDReadWriter_HashDecrypt(t *testing.T) {
