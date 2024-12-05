@@ -1,8 +1,8 @@
 GO=$(shell which go)
 RM=rm -f ./bin/*
+# BUILD_VERSION is the latest tag.
+BUILD_VERSION := $(shell git describe --tags --always)
 ifeq ($(OS), Windows_NT)
-	# BUILD_VERSION is the latest tag.
-	BUILD_VERSION := $(git describe --tags --always)
 	MV=move bin\opair bin\opair.exe
 	GO=go
 	RM=IF exist bin (cmd /c del /s /q bin && rmdir bin)
