@@ -50,6 +50,8 @@ jobs:
         run: go get ./...
       - name: build
         run: make release
+      - name: Run go tests
+        run: go test ./...
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
