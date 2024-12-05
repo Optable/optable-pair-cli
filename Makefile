@@ -1,4 +1,3 @@
-MV=mv ./bin/opair bin/opair
 GO=$(shell which go)
 RM=rm -f ./bin/*
 ifeq ($(OS), Windows_NT)
