@@ -16,6 +16,10 @@ func TestKeyCreate(t *testing.T) {
 
 	tmpDir := os.TempDir()
 	keyConfigFile := tmpDir + "/test_config.json"
+	defer func() {
+		err := os.RemoveAll(keyConfigFile)
+		require.NoError(t, err, "must remove temp file")
+	}()
 
 	createKeyCmd := CreateCmd{Force: false}
 	cli := Cli{
@@ -52,30 +56,16 @@ func TestKeyCreate(t *testing.T) {
 	require.Equal(t, "1", keyConfig["default"].Mode)
 	require.NotEmpty(t, keyConfig["default"].CreatedAt)
 
-	// test force
+	// test `force = true`
 	createKeyCmd = CreateCmd{Force: true}
-	cli = Cli{
-		KeyCmd:  KeyCmd{Create: createKeyCmd},
-		Context: "default",
-	}
-	cfg = &Config{
-		configPath: keyConfigFile,
-	}
-	cmdCtx, err = cli.NewContext(cfg)
-	require.NoError(t, err)
 
 	err = createKeyCmd.Run(cmdCtx)
 	require.NoError(t, err)
 
-	info, err = os.Stat(keyConfigFile)
+	file, err = os.Open(keyConfigFile)
 	require.NoError(t, err)
-	require.NotEmpty(t, info.Size())
 
-	updatedFile, err := os.Open(keyConfigFile)
-	require.NoError(t, err)
-	defer updatedFile.Close()
-
-	keyData, err = io.ReadAll(updatedFile)
+	keyData, err = io.ReadAll(file)
 	require.NoError(t, err)
 
 	updatedKeyConfig := map[string]keys.KeyConfig{}
@@ -88,6 +78,25 @@ func TestKeyCreate(t *testing.T) {
 	require.Equal(t, "1", updatedKeyConfig["default"].Mode)
 	require.NotEmpty(t, updatedKeyConfig["default"].CreatedAt)
 
-	require.NotEqual(t, keyConfig["default"].ID, updatedKeyConfig["default"].ID)
-	require.NotEqual(t, keyConfig["default"].Key, updatedKeyConfig["default"].Key)
+	require.NotEqual(t, keyConfig["default"].ID, updatedKeyConfig["default"].ID, "ID should change")
+	require.NotEqual(t, keyConfig["default"].Key, updatedKeyConfig["default"].Key, "Key should change")
+
+	// test `force = false`
+	createKeyCmd = CreateCmd{Force: false}
+	err = createKeyCmd.Run(cmdCtx)
+	require.NoError(t, err)
+
+	file, err = os.Open(keyConfigFile)
+	require.NoError(t, err)
+
+	keyData, err = io.ReadAll(file)
+	require.NoError(t, err)
+
+	updatedKeyConfig2 := map[string]keys.KeyConfig{}
+	err = json.Unmarshal(keyData, &updatedKeyConfig2)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, updatedKeyConfig2["default"])
+	require.Equal(t, updatedKeyConfig["default"].ID, updatedKeyConfig2["default"].ID, "ID should not change")
+	require.Equal(t, updatedKeyConfig["default"].Key, updatedKeyConfig2["default"].Key, "Key should not change")
 }
