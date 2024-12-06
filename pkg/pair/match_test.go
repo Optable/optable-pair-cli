@@ -31,8 +31,8 @@ func TestMatch(t *testing.T) {
 	requireWriteEmails(t, r2, twiceEncryptedEmails2)
 
 	// create map to access encrypted emails faster
-	expectContain := make(map[string]struct{}, 1000)
-	for _, email := range encryptedEmails2 {
+	expectContain := make(map[string]struct{}, 900)
+	for _, email := range encryptedEmails2[:800] {
 		expectContain[email] = struct{}{}
 	}
 
