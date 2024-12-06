@@ -43,16 +43,16 @@ func TestCleanroomRun(t *testing.T) {
 			cleanroom := v1.Cleanroom{}
 			data, err := proto.Marshal(&cleanroom)
 			if err != nil {
-				panic(err)
+				t.Errorf("Failed to marshal response: %v", err)
 			}
 			_, err = w.Write(data)
 			if err != nil {
-				panic(err)
+				t.Errorf("Failed to write response body: %v", err)
 			}
 			w.WriteHeader(http.StatusOK)
 
 		default:
-			panic("Unexpected call:" + r.URL.Path)
+			t.Errorf("Unexpected call %s", r.URL.Path)
 		}
 	}))
 	defer server.Close()
@@ -88,7 +88,7 @@ func TestCleanroomRun_RequestFail(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 
 		default:
-			panic("Unexpected call:" + r.URL.Path)
+			t.Errorf("Unexpected call %s", r.URL.Path)
 		}
 	}))
 	defer server.Close()
