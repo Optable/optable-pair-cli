@@ -30,6 +30,12 @@ func TestMatch(t *testing.T) {
 	requireWriteEmails(t, r1, twiceEncryptedEmails1)
 	requireWriteEmails(t, r2, twiceEncryptedEmails2)
 
+	// create map to access encrypted emails faster
+	expectContain := make(map[string]struct{}, 1000)
+	for _, email := range encryptedEmails2 {
+		expectContain[email] = struct{}{}
+	}
+
 	// act
 	dir, err := os.MkdirTemp("", "match_test")
 	require.NoError(t, err, "must create temp dir")
@@ -51,6 +57,12 @@ func TestMatch(t *testing.T) {
 	records, err := csvReader.ReadAll()
 	require.NoError(t, err, "must read csv data")
 	require.Len(t, records, 800, "must contain 100 emails")
+
+	for _, line := range records {
+		require.Len(t, line, 1, "must contain 1 element")
+		_, exists := expectContain[line[0]]
+		require.True(t, exists, "must exist in the hash-encrypted list")
+	}
 }
 
 func TestMatch_MultipleWorkers(t *testing.T) {
@@ -79,7 +91,7 @@ func TestMatch_MultipleWorkers(t *testing.T) {
 	requireWriteEmails(t, rP3, twiceEncryptedEmails2[500:750])
 	requireWriteEmails(t, rP4, twiceEncryptedEmails2[750:])
 
-	// create map tp access encrypted emails faster
+	// create map to access encrypted emails faster
 	expectContain := make(map[string]struct{}, 1000)
 	for _, email := range encryptedEmails2 {
 		expectContain[email] = struct{}{}
