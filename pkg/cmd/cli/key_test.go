@@ -15,7 +15,7 @@ func TestKeyCreate(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := os.TempDir()
-	keyConfigFile := tmpDir + "test_config.json"
+	keyConfigFile := tmpDir + "/test_config.json"
 
 	createKeyCmd := CreateCmd{Force: false}
 	cli := Cli{
