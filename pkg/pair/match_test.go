@@ -36,9 +36,14 @@ func TestMatch(t *testing.T) {
 		expectContain[email] = struct{}{}
 	}
 
-	// act
 	dir, err := os.MkdirTemp("", "match_test")
 	require.NoError(t, err, "must create temp dir")
+	defer func() {
+		err = os.RemoveAll(dir)
+		require.NoError(t, err, "must remove temp dir")
+	}()
+
+	// act
 	matcher, err := NewMatcher([]io.Reader{r1}, []io.Reader{r2}, dir)
 	require.NoError(t, err, "must create Matcher")
 
