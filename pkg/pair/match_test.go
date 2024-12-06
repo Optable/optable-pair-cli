@@ -126,7 +126,7 @@ func TestMatch_MultipleWorkers(t *testing.T) {
 		records, err := csvReader.ReadAll()
 		require.NoError(t, err, "must read csv data")
 
-		// check if the records exiet in the hash-encrypted list
+		// check if the records exist in the hash-encrypted list
 		for _, line := range records {
 			require.Len(t, line, 1, "must contain 1 element")
 			_, exists := expectContain[line[0]]
