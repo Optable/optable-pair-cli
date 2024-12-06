@@ -56,7 +56,7 @@ func TestMatch(t *testing.T) {
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
 	require.NoError(t, err, "must read csv data")
-	require.Len(t, records, 800, "must contain 100 emails")
+	require.Len(t, records, 800, "must contain 800 emails")
 
 	for _, line := range records {
 		require.Len(t, line, 1, "must contain 1 element")
