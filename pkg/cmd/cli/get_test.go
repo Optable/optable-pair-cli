@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"optable-pair-cli/pkg/internal"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestCleanroomRun(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/admin/api/external/v1/cleanroom/get":
+		case internal.AdminCleanroomGetURL:
 			assertGetRequest(r)
 
 			cleanroom := v1.Cleanroom{}
@@ -84,7 +85,7 @@ func TestCleanroomRun_RequestFail(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/admin/api/external/v1/cleanroom/get":
+		case internal.AdminCleanroomGetURL:
 			w.WriteHeader(http.StatusNotFound)
 
 		default:

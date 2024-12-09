@@ -14,7 +14,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const waitTime = 1 * time.Hour
+const (
+	waitTime = 1 * time.Hour
+
+	AdminCleanroomGetURL          = "/admin/api/external/v1/cleanroom/get"
+	AdminCleanroomRefreshTokenURL = "/admin/api/external/v1/cleanroom/refresh-token"
+	AdminCleanroomAdvanceURL      = "/admin/api/external/v1/cleanroom/advance-advertiser-state"
+)
 
 type (
 	CleanroomClient struct {
@@ -164,11 +170,11 @@ func (c *CleanroomClient) do(ctx context.Context, req proto.Message) (*v1.Cleanr
 	var path string
 	switch req.(type) {
 	case *v1.GetCleanroomRequest:
-		path = "/admin/api/external/v1/cleanroom/get"
+		path = AdminCleanroomGetURL
 	case *v1.RefreshTokenRequest:
-		path = "/admin/api/external/v1/cleanroom/refresh-token"
+		path = AdminCleanroomRefreshTokenURL
 	case *v1.AdvanceCleanroomAdvertiserStateRequest:
-		path = "/admin/api/external/v1/cleanroom/advance-advertiser-state"
+		path = AdminCleanroomAdvanceURL
 	default:
 		return nil, fmt.Errorf("unknown request type")
 	}

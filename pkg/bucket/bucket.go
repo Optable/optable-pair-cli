@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -56,6 +57,8 @@ type (
 	Option func(*bucketOptions)
 )
 
+var HTTPClient = &http.Client{}
+
 // WithReader allows to specify a reader to be used for the bucket.
 func WithReader(reader io.Reader) Option {
 	return func(o *bucketOptions) {
@@ -86,6 +89,7 @@ func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL stri
 				},
 			),
 		),
+		option.WithHTTPClient(HTTPClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
