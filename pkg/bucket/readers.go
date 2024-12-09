@@ -26,8 +26,8 @@ type (
 		client            *storage.Client
 		AdvReader         []io.ReadCloser
 		PubReader         []io.ReadCloser
-		AdvPrefixedBucket *prefixedBucket
-		PubPrefixedBucket *prefixedBucket
+		AdvPrefixedBucket *PrefixedBucket
+		PubPrefixedBucket *PrefixedBucket
 		PubFileReader     io.Reader
 	}
 )
@@ -89,7 +89,7 @@ func NewReaders(ctx context.Context, downScopedToken, advURL string, opts ...Opt
 // newObjectReaders lists the objects specified by the advPrefixedBucket and pubPrefixedBucket and opens a reader for each object,
 // except for the .Completed file.
 func (b *Readers) newObjectReaders(ctx context.Context) error {
-	advReaders, err := readersFromPrefixedBucket(ctx, b.client, b.AdvPrefixedBucket)
+	advReaders, err := ReadersFromPrefixedBucket(ctx, b.client, b.AdvPrefixedBucket)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (b *Readers) newObjectReaders(ctx context.Context) error {
 		return errors.New("missing publisher bucket URL")
 	}
 
-	pubReaders, err := readersFromPrefixedBucket(ctx, b.client, b.PubPrefixedBucket)
+	pubReaders, err := ReadersFromPrefixedBucket(ctx, b.client, b.PubPrefixedBucket)
 	if err != nil {
 		return err
 	}
@@ -115,11 +115,11 @@ func (b *Readers) newObjectReaders(ctx context.Context) error {
 	return nil
 }
 
-func readersFromPrefixedBucket(ctx context.Context, client *storage.Client, pBucket *prefixedBucket) ([]io.ReadCloser, error) {
+func ReadersFromPrefixedBucket(ctx context.Context, client *storage.Client, pBucket *PrefixedBucket) ([]io.ReadCloser, error) {
 	logger := zerolog.Ctx(ctx)
-	query := &storage.Query{Prefix: pBucket.prefix + "/"}
+	query := &storage.Query{Prefix: pBucket.Prefix + "/"}
 
-	bucket := client.Bucket(pBucket.bucket)
+	bucket := client.Bucket(pBucket.Bucket)
 
 	it := bucket.Objects(ctx, query)
 	var readers []io.ReadCloser
@@ -129,7 +129,7 @@ func readersFromPrefixedBucket(ctx context.Context, client *storage.Client, pBuc
 		if errors.Is(err, iterator.Done) {
 			break
 		} else if err != nil {
-			logger.Debug().Err(err).Msgf("failed to list objects from source bucket %s", pBucket.prefix)
+			logger.Debug().Err(err).Msgf("failed to list objects from source bucket %s", pBucket.Prefix)
 			return nil, err
 		}
 

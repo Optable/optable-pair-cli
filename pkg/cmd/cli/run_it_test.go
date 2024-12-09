@@ -9,6 +9,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -41,7 +42,7 @@ var (
 	sampleBucket = uuid.New().String()
 	// insecureHTTPClient is used to create a client that skips TLS verification.
 	// it is required for local testing with the storage emulator.
-	insecureHTTPClient = &http.Client{
+	insecureGCSHTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -60,22 +61,26 @@ func TestRun(t *testing.T) {
 	requireCreateBucket(t)
 
 	// update HTTP client for bucket completer
-	obucket.HTTPClient = insecureHTTPClient
+	obucket.HTTPClient = insecureGCSHTTPClient
 
 	var (
-		tmpDir                          = os.TempDir()
-		output                          = path.Join(tmpDir, "output.csv")
-		salt                            = requireGenSalt(t)
-		cleanroomName                   = "cleanrooms/" + uuid.New().String()
-		expireTime                      = time.Now().Add(1 * time.Hour)
-		bucket                          = fmt.Sprintf("gs://%s", sampleBucket)
-		advertiserTwiceEncryptedFolder  = fmt.Sprintf("%s/%s/advertiser_twice_encrypted", bucket, cleanroomName)
-		publisherTwiceEncryptedFolder   = fmt.Sprintf("%s/%s/publisher_twice_encrypted", bucket, cleanroomName)
-		advertiserTripleEncryptedFolder = fmt.Sprintf("%s/%s/advertiser_triple_encrypted", bucket, cleanroomName)
-		publisherTripleEncryptedFolder  = fmt.Sprintf("%s/%s/publisher_triple_encrypted", bucket, cleanroomName)
-		publisherTwiceEncryptedData     = advertiserTwiceEncryptedFolder + "/data.csv"
-		publisherTripleEncryptedData    = advertiserTripleEncryptedFolder + "/data.csv"
-		cleanroom                       = v1.Cleanroom{
+		tmpDir                             = os.TempDir()
+		output                             = path.Join(tmpDir, "output.csv")
+		salt                               = requireGenSalt(t)
+		cleanroomName                      = "cleanrooms/" + uuid.New().String()
+		expireTime                         = time.Now().Add(1 * time.Hour)
+		bucket                             = fmt.Sprintf("gs://%s", sampleBucket)
+		advertiserTwiceEncryptedFolder     = fmt.Sprintf("%s/advertiser_twice_encrypted", cleanroomName)
+		publisherTwiceEncryptedFolder      = fmt.Sprintf("%s/publisher_twice_encrypted", cleanroomName)
+		advertiserTripleEncryptedFolder    = fmt.Sprintf("%s/advertiser_triple_encrypted", cleanroomName)
+		publisherTripleEncryptedFolder     = fmt.Sprintf("%s/publisher_triple_encrypted", cleanroomName)
+		advertiserTwiceEncryptedGCSFolder  = fmt.Sprintf("%s/%s", bucket, advertiserTwiceEncryptedFolder)
+		publisherTwiceEncryptedGCSFolder   = fmt.Sprintf("%s/%s", bucket, publisherTwiceEncryptedFolder)
+		advertiserTripleEncryptedGCSFolder = fmt.Sprintf("%s/%s", bucket, advertiserTripleEncryptedFolder)
+		publisherTripleEncryptedGCSFolder  = fmt.Sprintf("%s/%s", bucket, publisherTripleEncryptedFolder)
+		publisherTwiceEncryptedDataFile    = publisherTwiceEncryptedFolder + "/data.csv"
+		publisherTripleEncryptedDataFile   = publisherTripleEncryptedFolder + "/data.csv"
+		cleanroom                          = v1.Cleanroom{
 			Name:       cleanroomName,
 			ExpireTime: timestamppb.New(expireTime),
 			Config: &v1.Cleanroom_Config{
@@ -85,10 +90,10 @@ func TestRun(t *testing.T) {
 							Value:      "gcsToken",
 							ExpireTime: timestamppb.New(expireTime),
 						},
-						AdvertiserTwiceEncryptedDataUrl:  advertiserTwiceEncryptedFolder,
-						PublisherTwiceEncryptedDataUrl:   publisherTwiceEncryptedFolder,
-						AdvertiserTripleEncryptedDataUrl: advertiserTripleEncryptedFolder,
-						PublisherTripleEncryptedDataUrl:  publisherTripleEncryptedFolder,
+						AdvertiserTwiceEncryptedDataUrl:  advertiserTwiceEncryptedGCSFolder,
+						PublisherTwiceEncryptedDataUrl:   publisherTwiceEncryptedGCSFolder,
+						AdvertiserTripleEncryptedDataUrl: advertiserTripleEncryptedGCSFolder,
+						PublisherTripleEncryptedDataUrl:  publisherTripleEncryptedGCSFolder,
 					},
 				},
 			},
@@ -125,7 +130,7 @@ func TestRun(t *testing.T) {
 	err = tmpConfigFile.Close()
 	require.NoError(t, err, "must close temp file")
 
-	requireGenPublisherTwiceEncryptedData(t, publisherPairKey, publisherTwiceEncryptedData)
+	requireGenPublisherTwiceEncryptedData(t, publisherPairKey, publisherTwiceEncryptedDataFile)
 	advertiserInput := requireGenAdvertiserInput(t, tmpDir)
 
 	// init optable mock server
@@ -151,7 +156,12 @@ func TestRun(t *testing.T) {
 			nextPuplisherState = v1.Cleanroom_Participant_SUCCEEDED
 			nextAdvertiserState = v1.Cleanroom_Participant_DATA_TRANSFORMED
 			// add publisher triple encrypted data
-			requireGenPublisherTripleEncryptedData(t, publisherPairKey, publisherTwiceEncryptedData, publisherTripleEncryptedData)
+			requireGenPublisherTripleEncryptedData(
+				t,
+				publisherPairKey,
+				advertiserTwiceEncryptedFolder,
+				publisherTripleEncryptedDataFile,
+			)
 			writeCleanroom(w)
 
 		default:
@@ -240,7 +250,7 @@ func requireCreateGCSClient(t *testing.T) *storage.Client {
 	ctx := context.Background()
 
 	client, err := storage.NewClient(ctx,
-		option.WithHTTPClient(insecureHTTPClient),
+		option.WithHTTPClient(insecureGCSHTTPClient),
 		option.WithEndpoint(os.Getenv("STORAGE_EMULATOR_HOST")+"/storage/v1/"),
 	)
 	require.NoError(t, err, "must create storage client")
@@ -263,7 +273,7 @@ func requireCreateBucket(t *testing.T) {
 	require.NoError(t, err, "must create bucket")
 }
 
-func requireGenPublisherTwiceEncryptedData(t *testing.T, pairKey *pair.PrivateKey, twiceEncrypted string) {
+func requireGenPublisherTwiceEncryptedData(t *testing.T, pairKey *pair.PrivateKey, twiceEncryptedFile string) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -273,7 +283,7 @@ func requireGenPublisherTwiceEncryptedData(t *testing.T, pairKey *pair.PrivateKe
 		require.NoError(t, err, "must close storage client")
 	}()
 
-	twiceEncryptedWriter := client.Bucket(sampleBucket).Object(twiceEncrypted).NewWriter(ctx)
+	twiceEncryptedWriter := client.Bucket(sampleBucket).Object(twiceEncryptedFile).NewWriter(ctx)
 	defer func() {
 		err := twiceEncryptedWriter.Close()
 		require.NoError(t, err, "must close GCS writer")
@@ -293,7 +303,7 @@ func requireGenPublisherTwiceEncryptedData(t *testing.T, pairKey *pair.PrivateKe
 	}
 }
 
-func requireGenPublisherTripleEncryptedData(t *testing.T, pairKey *pair.PrivateKey, twiceEncrypted, tripleEncrypted string) {
+func requireGenPublisherTripleEncryptedData(t *testing.T, pairKey *pair.PrivateKey, advTwiceEncFolder, tripleEncryptedFile string) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -303,15 +313,24 @@ func requireGenPublisherTripleEncryptedData(t *testing.T, pairKey *pair.PrivateK
 		require.NoError(t, err, "must close storage client")
 	}()
 
-	twiceEncrypteReader, err := client.Bucket(sampleBucket).Object(twiceEncrypted).NewReader(ctx)
-	require.NoError(t, err, "must create GCS reader")
-	defer func() {
-		err := twiceEncrypteReader.Close()
-		require.NoError(t, err, "must close GCS reader")
-	}()
-	twiceEncryptedCsvReader := csv.NewReader(twiceEncrypteReader)
+	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, client, &obucket.PrefixedBucket{
+		Bucket: sampleBucket,
+		Prefix: advTwiceEncFolder,
+	})
+	require.NoError(t, err, "must create readers")
+	require.NotEmpty(t, readClosers, "must have twice encrypted data")
 
-	tripleEncryptedWriter := client.Bucket(sampleBucket).Object(tripleEncrypted).NewWriter(ctx)
+	readers := make([]io.Reader, len(readClosers))
+	for i, r := range readClosers {
+		defer func(r io.ReadCloser) {
+			err := r.Close()
+			require.NoError(t, err, "must close GCS reader")
+		}(r)
+		readers[i] = r
+	}
+	twiceEncryptedCsvReader := csv.NewReader(io.MultiReader(readers...))
+
+	tripleEncryptedWriter := client.Bucket(sampleBucket).Object(tripleEncryptedFile).NewWriter(ctx)
 	defer func() {
 		err := tripleEncryptedWriter.Close()
 		require.NoError(t, err, "must close GCS writer")
