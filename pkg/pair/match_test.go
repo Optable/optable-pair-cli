@@ -12,17 +12,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	commonStart  int = 100
+	commonEnd    int = 1000
+	commoLen     int = 900
+	firstWorker  int = 250
+	secondWorker int = 500
+	thirdWorker  int = 750
+	nEmails      int = 1100
+)
+
 func TestMatch(t *testing.T) {
 	t.Parallel()
 
 	// arrange
-	lenEmails := 1001
 	ctx := context.Background()
 	salt := requireGenSalt(t)
 	publisherKey, advertiserKey := requireGenKey(t), requireGenKey(t)
-	emails := requireGenRandomHashedEmails(t, lenEmails)
-	publisherEncryptedEmails := requireEncryptEmails(t, emails[:900], salt, publisherKey)
-	advertiserEncryptedEmails := requireEncryptEmails(t, emails[100:], salt, advertiserKey)
+	emails := requireGenRandomHashedEmails(t, nEmails)
+	publisherEncryptedEmails := requireEncryptEmails(t, emails[:commonEnd], salt, publisherKey)
+	advertiserEncryptedEmails := requireEncryptEmails(t, emails[commonStart:], salt, advertiserKey)
 	publisherTwiceEncryptedEmails := requireReEncryptEmails(t, publisherEncryptedEmails, salt, advertiserKey)
 	advertiserTwiceEncryptedEmails := requireReEncryptEmails(t, advertiserEncryptedEmails, salt, publisherKey)
 	advertiserReader, publisherReader := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
@@ -31,8 +40,8 @@ func TestMatch(t *testing.T) {
 	requireWriteEmails(t, advertiserReader, advertiserTwiceEncryptedEmails)
 
 	// create map to access encrypted emails faster
-	expectContain := make(map[string]struct{}, 800)
-	for _, email := range publisherEncryptedEmails[100:] {
+	expectContain := make(map[string]struct{}, commoLen)
+	for _, email := range publisherEncryptedEmails[commonStart:] {
 		expectContain[email] = struct{}{}
 	}
 
@@ -61,12 +70,13 @@ func TestMatch(t *testing.T) {
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
 	require.NoError(t, err, "must read csv data")
-	require.Len(t, records, 800, "must contain 800 emails")
+	require.Len(t, records, commoLen, "must contain 800 emails")
 
 	for _, line := range records {
 		require.Len(t, line, 1, "must contain 1 element")
 		_, exists := expectContain[line[0]]
 		require.True(t, exists, "must exist in the hash-encrypted list")
+		delete(expectContain, line[0])
 	}
 }
 
@@ -74,31 +84,30 @@ func TestMatch_MultipleWorkers(t *testing.T) {
 	t.Parallel()
 
 	// arrange
-	lenEmails := 1100
 	ctx := context.Background()
 	salt := requireGenSalt(t)
 	publisherKey, advertiserKey := requireGenKey(t), requireGenKey(t)
-	emails := requireGenRandomHashedEmails(t, lenEmails)
-	publisherEncryptedEmails := requireEncryptEmails(t, emails[:1000], salt, publisherKey)
-	advertiserEncryptedEmails := requireEncryptEmails(t, emails[100:], salt, advertiserKey)
+	emails := requireGenRandomHashedEmails(t, nEmails)
+	publisherEncryptedEmails := requireEncryptEmails(t, emails[:commonEnd], salt, publisherKey)
+	advertiserEncryptedEmails := requireEncryptEmails(t, emails[commonStart:], salt, advertiserKey)
 	publisherTwiceEncryptedEmails := requireReEncryptEmails(t, publisherEncryptedEmails, salt, advertiserKey)
 	advertiserTwiceEncryptedEmails := requireReEncryptEmails(t, advertiserEncryptedEmails, salt, publisherKey)
 	rA1, rA2, rA3, rA4 := bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 	rP1, rP2, rP3, rP4 := bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
-	requireWriteEmails(t, rA1, publisherTwiceEncryptedEmails[:250])
-	requireWriteEmails(t, rA2, publisherTwiceEncryptedEmails[250:500])
-	requireWriteEmails(t, rA3, publisherTwiceEncryptedEmails[500:750])
-	requireWriteEmails(t, rA4, publisherTwiceEncryptedEmails[750:])
+	requireWriteEmails(t, rA1, publisherTwiceEncryptedEmails[:firstWorker])
+	requireWriteEmails(t, rA2, publisherTwiceEncryptedEmails[firstWorker:secondWorker])
+	requireWriteEmails(t, rA3, publisherTwiceEncryptedEmails[secondWorker:thirdWorker])
+	requireWriteEmails(t, rA4, publisherTwiceEncryptedEmails[thirdWorker:])
 
-	requireWriteEmails(t, rP1, advertiserTwiceEncryptedEmails[:250])
-	requireWriteEmails(t, rP2, advertiserTwiceEncryptedEmails[250:500])
-	requireWriteEmails(t, rP3, advertiserTwiceEncryptedEmails[500:750])
-	requireWriteEmails(t, rP4, advertiserTwiceEncryptedEmails[750:])
+	requireWriteEmails(t, rP1, advertiserTwiceEncryptedEmails[:firstWorker])
+	requireWriteEmails(t, rP2, advertiserTwiceEncryptedEmails[firstWorker:secondWorker])
+	requireWriteEmails(t, rP3, advertiserTwiceEncryptedEmails[secondWorker:thirdWorker])
+	requireWriteEmails(t, rP4, advertiserTwiceEncryptedEmails[thirdWorker:])
 
 	// create map to access encrypted emails faster
-	expectContain := make(map[string]struct{}, 900)
-	for _, email := range publisherEncryptedEmails[100:] {
+	expectContain := make(map[string]struct{}, commoLen)
+	for _, email := range publisherEncryptedEmails[commonStart:] {
 		expectContain[email] = struct{}{}
 	}
 
@@ -131,11 +140,12 @@ func TestMatch_MultipleWorkers(t *testing.T) {
 			require.Len(t, line, 1, "must contain 1 element")
 			_, exists := expectContain[line[0]]
 			require.True(t, exists, "must exist in the hash-encrypted list")
+			delete(expectContain, line[0])
 		}
 
 		// count the matched emails
 		matchRate += len(records)
 	}
 
-	require.Equal(t, 900, matchRate, "must match 900 emails")
+	require.Equal(t, commoLen, matchRate, "must match 900 emails")
 }
