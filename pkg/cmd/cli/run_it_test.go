@@ -360,7 +360,7 @@ func (s *cmdTestSuite) newCleanroom() v1.Cleanroom {
 func (s *cmdTestSuite) requireCreateNewKeyConfig() string {
 	s.T().Helper()
 
-	tmpConfigFile, err := os.Create(path.Join(s.tmpDir, "test_config_"))
+	tmpConfigFile, err := os.Create(path.Join(s.tmpDir, "test_config.json"))
 	s.Require().NoError(err, "must create temp file")
 
 	defer func() {
