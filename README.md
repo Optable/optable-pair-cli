@@ -82,7 +82,7 @@ Integration tests require disk space and [fake-gcs-server](https://github.com/fs
 To run integration tests, you can start `fake-gcs-server` in Docker with the following command:
 
 ```bash
-docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server -scheme http -public-host 0.0.0.0:4443 -backend memory
+docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server -scheme http -public-host 0.0.0.0:4443
 ```
 
 Notes:
