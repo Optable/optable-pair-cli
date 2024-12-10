@@ -65,7 +65,7 @@ type cmdTestSuite struct {
 // After running fake-gcs-server:
 // docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server -scheme http -public-host 0.0.0.0:4443
 // export `STORAGE_EMULATOR_HOST=http://0.0.0.0:4443“ to run the test:
-// `STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./pkg/cmd/cli/... -run="TestRunCmd"“
+// `STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./pkg/cmd/cli/... -run="TestCmd"“
 func TestCmd(t *testing.T) {
 	t.Parallel()
 
