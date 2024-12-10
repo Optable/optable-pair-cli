@@ -120,10 +120,16 @@ func (s *cmdTestSuite) SetupSuite() {
 
 func (s *cmdTestSuite) TearDownAllSuite() {
 	defer func() {
+		if s.gcsClient == nil {
+			return
+		}
 		err := s.gcsClient.Bucket(s.sampleBucket).Delete(s.ctx)
 		s.Require().NoError(err, "must delete bucket")
 	}()
 	defer func() {
+		if s.gcsClient == nil {
+			return
+		}
 		err := s.gcsClient.Close()
 		s.Require().NoError(err, "must close storage client")
 	}()
@@ -144,7 +150,6 @@ func (s *cmdTestSuite) SetupTest() {
 	s.expireTime = time.Now().Add(1 * time.Hour)
 
 	s.tmpDir = path.Join(os.TempDir(), id)
-	s.T().Logf("Temp dir: %s", s.tmpDir)
 	err := os.MkdirAll(s.tmpDir, os.ModePerm)
 	s.Require().NoError(err, "must create temp dir")
 
