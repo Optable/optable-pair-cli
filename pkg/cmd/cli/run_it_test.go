@@ -12,8 +12,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,31 +27,46 @@ import (
 	"github.com/google/uuid"
 	v1 "github.com/optable/match-api/v2/gen/optable/external/v1"
 	"github.com/optable/match/pkg/pair"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
-	sha256SaltSize = 32
-	genInputNumber = 1001
+	sha256SaltSize        = 32
+	genEmailsSourceNumber = 1001
 
 	keyContext = "default"
 )
 
-var (
-	sampleBucket = uuid.New().String()
-	// insecureHTTPClient is used to create a client that skips TLS verification.
-	// it is required for local testing with the storage emulator.
-	insecureGCSHTTPClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-)
+type cmdTestSuite struct {
+	suite.Suite
 
-func TestRun(t *testing.T) {
+	// suite parameters for all tests
+	ctx          context.Context
+	gcsClient    *storage.Client
+	sampleBucket string
+
+	// test parameters for each test
+	cleanroomName               string
+	expireTime                  time.Time
+	emailsSource                []string
+	tmpDir                      string
+	salt                        string
+	publisherPairKey            *pair.PrivateKey
+	advertiserInputFilePath     string
+	advertiserKeyConfigFilePath string
+	publisherPAIRIDsFolderPath  string
+	advertiserOutputFolderPath  string
+}
+
+// TestCmd requires the STORAGE_EMULATOR_HOST environment variable to be set.
+// After running fake-gcs-server:
+// docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server -scheme http -public-host 0.0.0.0:4443
+// export `STORAGE_EMULATOR_HOST=http://0.0.0.0:4443“ to run the test:
+// `STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./pkg/cmd/cli/... -run="TestRunCmd"“
+func TestCmd(t *testing.T) {
 	t.Parallel()
 
 	// STORAGE_EMULATOR_HOST is required to run this test
@@ -57,127 +74,153 @@ func TestRun(t *testing.T) {
 	if bucketURL == "" {
 		t.Skip("STORAGE_EMULATOR_HOST is required to run this test")
 	}
+	suite.Run(t, new(cmdTestSuite))
+}
 
-	requireCreateBucket(t)
+func (s *cmdTestSuite) SetupSuite() {
+	s.ctx = context.Background()
+	s.sampleBucket = uuid.NewString()
+
+	// insecureHTTPClient is used to create a client that skips TLS verification.
+	// it is required for local testing with the storage emulator.
+	insecureGCSHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 
 	// update HTTP client for bucket completer
 	obucket.HTTPClient = insecureGCSHTTPClient
 
-	var (
-		tmpDir                             = os.TempDir()
-		output                             = path.Join(tmpDir, "output.csv")
-		salt                               = requireGenSalt(t)
-		cleanroomName                      = "cleanrooms/" + uuid.New().String()
-		expireTime                         = time.Now().Add(1 * time.Hour)
-		bucket                             = fmt.Sprintf("gs://%s", sampleBucket)
-		advertiserTwiceEncryptedFolder     = fmt.Sprintf("%s/advertiser_twice_encrypted", cleanroomName)
-		publisherTwiceEncryptedFolder      = fmt.Sprintf("%s/publisher_twice_encrypted", cleanroomName)
-		advertiserTripleEncryptedFolder    = fmt.Sprintf("%s/advertiser_triple_encrypted", cleanroomName)
-		publisherTripleEncryptedFolder     = fmt.Sprintf("%s/publisher_triple_encrypted", cleanroomName)
-		advertiserTwiceEncryptedGCSFolder  = fmt.Sprintf("%s/%s", bucket, advertiserTwiceEncryptedFolder)
-		publisherTwiceEncryptedGCSFolder   = fmt.Sprintf("%s/%s", bucket, publisherTwiceEncryptedFolder)
-		advertiserTripleEncryptedGCSFolder = fmt.Sprintf("%s/%s", bucket, advertiserTripleEncryptedFolder)
-		publisherTripleEncryptedGCSFolder  = fmt.Sprintf("%s/%s", bucket, publisherTripleEncryptedFolder)
-		publisherTwiceEncryptedDataFile    = publisherTwiceEncryptedFolder + "/data.csv"
-		publisherTripleEncryptedDataFile   = publisherTripleEncryptedFolder + "/data.csv"
-		cleanroom                          = v1.Cleanroom{
-			Name:       cleanroomName,
-			ExpireTime: timestamppb.New(expireTime),
-			Config: &v1.Cleanroom_Config{
-				Config: &v1.Cleanroom_Config_Pair{
-					Pair: &v1.Cleanroom_Config_PairConfig{
-						GcsToken: &v1.Cleanroom_Config_PairConfig_AuthToken{
-							Value:      "gcsToken",
-							ExpireTime: timestamppb.New(expireTime),
-						},
-						AdvertiserTwiceEncryptedDataUrl:  advertiserTwiceEncryptedGCSFolder,
-						PublisherTwiceEncryptedDataUrl:   publisherTwiceEncryptedGCSFolder,
-						AdvertiserTripleEncryptedDataUrl: advertiserTripleEncryptedGCSFolder,
-						PublisherTripleEncryptedDataUrl:  publisherTripleEncryptedGCSFolder,
-					},
-				},
-			},
-			Participants: []*v1.Cleanroom_Participant{
-				{
-					Role:  v1.Cleanroom_Participant_PUBLISHER,
-					State: v1.Cleanroom_Participant_DATA_CONTRIBUTED,
-				},
-				{
-					Role:  v1.Cleanroom_Participant_ADVERTISER,
-					State: v1.Cleanroom_Participant_INVITED,
-				},
-			},
-		}
-		nextPuplisherState  = v1.Cleanroom_Participant_DATA_TRANSFORMED
-		nextAdvertiserState = v1.Cleanroom_Participant_DATA_CONTRIBUTED
+	// init GCS emulator client and bucket
+	bucketURL := os.Getenv("STORAGE_EMULATOR_HOST")
+
+	// check if fake-gcs-server is reachable.
+	getBuckets, err := url.Parse(bucketURL + "/storage/v1/b")
+	s.Require().NoError(err, "must parse fake-gcs-server URL")
+	resp, err := insecureGCSHTTPClient.Do(&http.Request{
+		Method: http.MethodGet,
+		URL:    getBuckets,
+	})
+	s.Require().NoError(err, "must reach fake-gcs-server")
+	defer resp.Body.Close()
+	s.Require().Equal(http.StatusOK, resp.StatusCode, "must reach fake-gcs-server")
+
+	client, err := storage.NewClient(s.ctx,
+		option.WithHTTPClient(insecureGCSHTTPClient),
+		option.WithEndpoint(bucketURL+"/storage/v1/"),
 	)
+	s.Require().NoError(err, "must create storage client")
+	err = client.Bucket(s.sampleBucket).Create(s.ctx, "_", &storage.BucketAttrs{
+		Location: "US",
+	})
+	s.Require().NoError(err, "must create bucket")
+	s.gcsClient = client
+}
 
-	// generate publisher data
-	publisherKey, err := keys.NewPrivateKey(pair.PAIRSHA256Ristretto255)
-	require.NoError(t, err)
-	publisherPairKey, err := keys.NewPAIRPrivateKey(salt, publisherKey)
-	require.NoError(t, err)
-
-	tmpConfigFile, err := os.CreateTemp(tmpDir, "test_config.json")
-	require.NoError(t, err, "must create temp file")
-
+func (s *cmdTestSuite) TearDownAllSuite() {
 	defer func() {
-		err := os.RemoveAll(tmpDir)
-		require.NoError(t, err, "must remove temp dir")
+		err := s.gcsClient.Bucket(s.sampleBucket).Delete(s.ctx)
+		s.Require().NoError(err, "must delete bucket")
 	}()
+	defer func() {
+		err := s.gcsClient.Close()
+		s.Require().NoError(err, "must close storage client")
+	}()
+}
 
-	requireWriteNewKey(t, tmpConfigFile)
-	err = tmpConfigFile.Close()
-	require.NoError(t, err, "must close temp file")
+func (s *cmdTestSuite) SetupTest() {
+	// generate emails
+	s.emailsSource = make([]string, genEmailsSourceNumber)
+	shaEncoder := sha256.New()
+	for i := range genEmailsSourceNumber {
+		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
+		hem := shaEncoder.Sum(nil)
+		s.emailsSource[i] = fmt.Sprintf("%x", hem)
+	}
 
-	requireGenPublisherTwiceEncryptedData(t, publisherPairKey, publisherTwiceEncryptedDataFile)
-	advertiserInput := requireGenAdvertiserInput(t, tmpDir)
+	id := uuid.New().String()
+	s.cleanroomName = "cleanrooms/" + id
+	s.expireTime = time.Now().Add(1 * time.Hour)
 
+	s.tmpDir = path.Join(os.TempDir(), id)
+	s.T().Logf("Temp dir: %s", s.tmpDir)
+	err := os.MkdirAll(s.tmpDir, os.ModePerm)
+	s.Require().NoError(err, "must create temp dir")
+
+	s.publisherPAIRIDsFolderPath = path.Join(s.tmpDir, "publisher_pair_id")
+	s.advertiserOutputFolderPath = path.Join(s.tmpDir, "output")
+
+	// create advertiser key config file in tmp folder
+	s.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig()
+	// create advertiser input file in tmp folder
+	s.advertiserInputFilePath = s.requireCreateAdvertiserInputFile()
+
+	// generate salt
+	salt := make([]byte, sha256SaltSize)
+	_, err = rand.Read(salt)
+	s.Require().NoError(err)
+	s.salt = base64.StdEncoding.EncodeToString(salt)
+
+	// generate publisher PAIR key
+	publisherKey, err := keys.NewPrivateKey(pair.PAIRSHA256Ristretto255)
+	s.Require().NoError(err)
+	s.publisherPairKey, err = keys.NewPAIRPrivateKey(s.salt, publisherKey)
+	s.Require().NoError(err)
+
+	// create publisher twice encrypted data in gcs emulator
+	s.requireGenPublisherTwiceEncryptedData()
+}
+
+func (s *cmdTestSuite) TearDownTest() {
+	defer func() {
+		err := os.RemoveAll(s.tmpDir)
+		s.Require().NoError(err, "must remove temp dir")
+	}()
+}
+
+func (s *cmdTestSuite) TestRun() {
+	s.testRun(1)
+}
+
+func (s *cmdTestSuite) TestRun_MultipleWorkers() {
+	s.testRun(4)
+}
+
+func (s *cmdTestSuite) TestRun_FailToAdvance() {
 	// init optable mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeCleanroom := func(w http.ResponseWriter) {
+		switch r.URL.Path {
+		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
+			cleanroom := s.newCleanroom()
 			data, err := proto.Marshal(&cleanroom)
 			if err != nil {
-				t.Errorf("Failed to marshal response: %v", err)
+				s.T().Errorf("Failed to marshal response: %v", err)
 			}
 			_, err = w.Write(data)
 			if err != nil {
-				t.Errorf("Failed to write response body: %v", err)
+				s.T().Errorf("Failed to write response body: %v", err)
 			}
 			w.WriteHeader(http.StatusOK)
-		}
-		switch r.URL.Path {
-		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
-			writeCleanroom(w)
 
 		case internal.AdminCleanroomAdvanceURL:
-			cleanroom.Participants[0].State = nextPuplisherState
-			cleanroom.Participants[1].State = nextAdvertiserState
-			nextPuplisherState = v1.Cleanroom_Participant_SUCCEEDED
-			nextAdvertiserState = v1.Cleanroom_Participant_DATA_TRANSFORMED
-			// add publisher triple encrypted data
-			requireGenPublisherTripleEncryptedData(
-				t,
-				publisherPairKey,
-				advertiserTwiceEncryptedFolder,
-				publisherTripleEncryptedDataFile,
-			)
-			writeCleanroom(w)
+			w.WriteHeader(http.StatusInternalServerError)
 
 		default:
-			t.Errorf("Unexpected call %s", r.URL.Path)
+			s.T().Errorf("Unexpected call %s", r.URL.Path)
 		}
 	}))
 	defer server.Close()
 
-	token, err := generateToken(server.URL, cleanroomName, salt)
-	require.NoError(t, err)
+	token, err := generateToken(server.URL, s.cleanroomName, s.salt)
+	s.Require().NoError(err)
 
 	runCommand := RunCmd{
 		PairCleanroomToken: token,
-		Input:              advertiserInput,
+		Input:              s.advertiserInputFilePath,
 		NumThreads:         1,
-		Output:             output,
+		Output:             s.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.publisherPAIRIDsFolderPath,
 	}
 
 	cli := Cli{
@@ -188,165 +231,373 @@ func TestRun(t *testing.T) {
 	}
 
 	cfg := &Config{
-		configPath: tmpConfigFile.Name(),
+		configPath: s.advertiserKeyConfigFilePath,
 	}
 
 	cmdCtx, err := cli.NewContext(cfg)
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
 	err = runCommand.Run(cmdCtx)
-	require.NoError(t, err)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "500")
 }
 
-func requireGenSalt(t *testing.T) string {
-	t.Helper()
-	salt := make([]byte, sha256SaltSize)
-	_, err := rand.Read(salt)
-	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(salt)
+func (s *cmdTestSuite) testRun(workersNum int) {
+	var (
+		cleanroom = s.newCleanroom()
+		// next states for the participants to be changed on each advance call
+		nextPuplisherState  = v1.Cleanroom_Participant_DATA_TRANSFORMED
+		nextAdvertiserState = v1.Cleanroom_Participant_DATA_CONTRIBUTED
+	)
+
+	// init optable mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeCleanroom := func(w http.ResponseWriter) {
+			data, err := proto.Marshal(&cleanroom)
+			if err != nil {
+				s.T().Errorf("Failed to marshal response: %v", err)
+			}
+			_, err = w.Write(data)
+			if err != nil {
+				s.T().Errorf("Failed to write response body: %v", err)
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+		switch r.URL.Path {
+		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
+			writeCleanroom(w)
+
+		case internal.AdminCleanroomAdvanceURL:
+			// advance the state of the participants
+			cleanroom.Participants[0].State = nextPuplisherState
+			cleanroom.Participants[1].State = nextAdvertiserState
+
+			if cleanroom.Participants[0].State == v1.Cleanroom_Participant_DATA_TRANSFORMED {
+				// add publisher triple encrypted data on this step
+				s.requireGenPublisherTripleEncryptedData()
+			}
+
+			nextPuplisherState = v1.Cleanroom_Participant_SUCCEEDED
+			nextAdvertiserState = v1.Cleanroom_Participant_DATA_TRANSFORMED
+
+			writeCleanroom(w)
+
+		default:
+			s.T().Errorf("Unexpected call %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	token, err := generateToken(server.URL, s.cleanroomName, s.salt)
+	s.Require().NoError(err)
+
+	runCommand := RunCmd{
+		PairCleanroomToken: token,
+		Input:              s.advertiserInputFilePath,
+		NumThreads:         workersNum,
+		Output:             s.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.publisherPAIRIDsFolderPath,
+	}
+
+	cli := Cli{
+		CleanroomCmd: CleanroomCmd{
+			Run: runCommand,
+		},
+		Context: keyContext,
+	}
+
+	cfg := &Config{
+		configPath: s.advertiserKeyConfigFilePath,
+	}
+
+	cmdCtx, err := cli.NewContext(cfg)
+	s.Require().NoError(err)
+
+	err = runCommand.Run(cmdCtx)
+	s.Require().NoError(err)
+
+	// check the result
+	s.requireLocalContentEqualToGCSContent(s.advertiserOutputFolderPath, s.publisherTwiceEncryptedFolder())
+	s.requireLocalContentEqualToGCSContent(s.publisherPAIRIDsFolderPath, s.publisherTripleEncryptedFolder())
 }
 
-func requireWriteNewKey(t *testing.T, keyConfigFile *os.File) {
+// creates new cleanroom with the given name and expire time. The cleanroom has two participants:
+// - publisher with DATA_CONTRIBUTED state;
+// - advertiser with INVITED state.
+func (s *cmdTestSuite) newCleanroom() v1.Cleanroom {
+	s.T().Helper()
+
+	return v1.Cleanroom{
+		Name:       s.cleanroomName,
+		ExpireTime: timestamppb.New(s.expireTime),
+		Config: &v1.Cleanroom_Config{
+			Config: &v1.Cleanroom_Config_Pair{
+				Pair: &v1.Cleanroom_Config_PairConfig{
+					GcsToken: &v1.Cleanroom_Config_PairConfig_AuthToken{
+						Value:      "gcsToken",
+						ExpireTime: timestamppb.New(s.expireTime),
+					},
+					AdvertiserTwiceEncryptedDataUrl:  s.advertiserTwiceEncryptedGCSFolder(),
+					PublisherTwiceEncryptedDataUrl:   s.publisherTwiceEncryptedGCSFolder(),
+					AdvertiserTripleEncryptedDataUrl: s.advertiserTripleEncryptedGCSFolder(),
+					PublisherTripleEncryptedDataUrl:  s.publisherTripleEncryptedGCSFolder(),
+				},
+			},
+		},
+		Participants: []*v1.Cleanroom_Participant{
+			{
+				Role:  v1.Cleanroom_Participant_PUBLISHER,
+				State: v1.Cleanroom_Participant_DATA_CONTRIBUTED,
+			},
+			{
+				Role:  v1.Cleanroom_Participant_ADVERTISER,
+				State: v1.Cleanroom_Participant_INVITED,
+			},
+		},
+	}
+}
+
+func (s *cmdTestSuite) requireCreateNewKeyConfig() string {
+	s.T().Helper()
+
+	tmpConfigFile, err := os.Create(path.Join(s.tmpDir, "test_config_"))
+	s.Require().NoError(err, "must create temp file")
+
+	defer func() {
+		err = tmpConfigFile.Close()
+		s.Require().NoError(err, "must close temp file")
+	}()
+
 	keyConfig, err := keys.GenerateKeyConfig()
-	require.NoError(t, err, "must generate key config")
+	s.Require().NoError(err, "must generate key config")
 
 	configs := map[string]keys.KeyConfig{
 		keyContext: *keyConfig,
 	}
 
 	keyData, err := json.Marshal(&configs)
-	require.NoError(t, err, "must marshal key config")
+	s.Require().NoError(err, "must marshal key config")
 
-	_, err = keyConfigFile.Write(keyData)
-	require.NoError(t, err, "must create temp file")
+	_, err = tmpConfigFile.Write(keyData)
+	s.Require().NoError(err, "must create temp file")
+
+	return tmpConfigFile.Name()
 }
 
-func requireGenAdvertiserInput(t *testing.T, dir string) string {
-	t.Helper()
+func (s *cmdTestSuite) requireCreateAdvertiserInputFile() string {
+	s.T().Helper()
 
-	tmpInputFile, err := os.CreateTemp(dir, "input.csv")
-	require.NoError(t, err, "must create temp file")
+	tmpInputFile, err := os.Create(path.Join(s.tmpDir, "input.csv"))
+	s.Require().NoError(err, "must create temp file")
 
 	defer func() {
 		err = tmpInputFile.Close()
-		require.NoError(t, err, "must close temp file")
+		s.Require().NoError(err, "must close temp file")
 	}()
 
 	w := csv.NewWriter(tmpInputFile)
 	defer w.Flush()
 
-	for i := range genInputNumber {
-		shaEncoder := sha256.New()
-		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
-		hem := shaEncoder.Sum(nil)
-		err = w.Write([]string{fmt.Sprintf("%x", hem)})
-		require.NoError(t, err, "must write email")
+	for _, email := range s.emailsSource {
+		err = w.Write([]string{email})
+		s.Require().NoError(err, "must write email")
 	}
 	return tmpInputFile.Name()
 }
 
-func requireCreateGCSClient(t *testing.T) *storage.Client {
-	t.Helper()
+func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
+	s.T().Helper()
 	ctx := context.Background()
 
-	client, err := storage.NewClient(ctx,
-		option.WithHTTPClient(insecureGCSHTTPClient),
-		option.WithEndpoint(os.Getenv("STORAGE_EMULATOR_HOST")+"/storage/v1/"),
-	)
-	require.NoError(t, err, "must create storage client")
-	return client
-}
-
-func requireCreateBucket(t *testing.T) {
-	t.Helper()
-	ctx := context.Background()
-
-	client := requireCreateGCSClient(t)
-	defer func() {
-		err := client.Close()
-		require.NoError(t, err, "must close storage client")
-	}()
-
-	err := client.Bucket(sampleBucket).Create(ctx, "_", &storage.BucketAttrs{
-		Location: "US",
-	})
-	require.NoError(t, err, "must create bucket")
-}
-
-func requireGenPublisherTwiceEncryptedData(t *testing.T, pairKey *pair.PrivateKey, twiceEncryptedFile string) {
-	t.Helper()
-	ctx := context.Background()
-
-	client := requireCreateGCSClient(t)
-	defer func() {
-		err := client.Close()
-		require.NoError(t, err, "must close storage client")
-	}()
-
-	twiceEncryptedWriter := client.Bucket(sampleBucket).Object(twiceEncryptedFile).NewWriter(ctx)
+	twiceEncryptedWriter := s.gcsClient.Bucket(s.sampleBucket).Object(
+		s.publisherTwiceEncryptedDataFile(),
+	).NewWriter(ctx)
 	defer func() {
 		err := twiceEncryptedWriter.Close()
-		require.NoError(t, err, "must close GCS writer")
+		s.Require().NoError(err, "must close GCS writer")
 	}()
-	twiceEncryptedCsvWriter := csv.NewWriter(twiceEncryptedWriter)
+
+	// trim this --->
+	pubWriter, err := os.Create(path.Join(s.tmpDir, "publisher_twice_encrypted.csv"))
+	s.Require().NoError(err, "must create temp file")
+	defer func() {
+		err := pubWriter.Close()
+		s.Require().NoError(err, "must close temp file")
+	}()
+
+	multiWriter := io.MultiWriter(twiceEncryptedWriter, pubWriter)
+	// trim this <---
+
+	twiceEncryptedCsvWriter := csv.NewWriter(multiWriter)
 	defer twiceEncryptedCsvWriter.Flush()
 
-	for i := range genInputNumber {
-		shaEncoder := sha256.New()
-		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
-		hem := shaEncoder.Sum(nil)
-
-		twiceEnc, err := pairKey.Encrypt(hem)
-		require.NoError(t, err, "must encrypt email")
+	for _, email := range s.emailsSource {
+		twiceEnc, err := s.publisherPairKey.Encrypt([]byte(email))
+		s.Require().NoError(err, "must encrypt email")
 		err = twiceEncryptedCsvWriter.Write([]string{string(twiceEnc)})
-		require.NoError(t, err, "must write email")
+		s.Require().NoError(err, "must write email")
 	}
 }
 
-func requireGenPublisherTripleEncryptedData(t *testing.T, pairKey *pair.PrivateKey, advTwiceEncFolder, tripleEncryptedFile string) {
-	t.Helper()
+func (s *cmdTestSuite) requireGenPublisherTripleEncryptedData() {
+	s.T().Helper()
 	ctx := context.Background()
 
-	client := requireCreateGCSClient(t)
-	defer func() {
-		err := client.Close()
-		require.NoError(t, err, "must close storage client")
-	}()
-
-	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, client, &obucket.PrefixedBucket{
-		Bucket: sampleBucket,
-		Prefix: advTwiceEncFolder,
-	})
-	require.NoError(t, err, "must create readers")
-	require.NotEmpty(t, readClosers, "must have twice encrypted data")
+	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, s.gcsClient,
+		&obucket.PrefixedBucket{
+			Bucket: s.sampleBucket,
+			Prefix: s.advertiserTwiceEncryptedFolder(),
+		},
+	)
+	s.Require().NoError(err, "must create readers")
+	s.Require().NotEmpty(readClosers, "must have twice encrypted data")
 
 	readers := make([]io.Reader, len(readClosers))
 	for i, r := range readClosers {
 		defer func(r io.ReadCloser) {
 			err := r.Close()
-			require.NoError(t, err, "must close GCS reader")
+			s.Require().NoError(err, "must close GCS reader")
 		}(r)
 		readers[i] = r
 	}
 	twiceEncryptedCsvReader := csv.NewReader(io.MultiReader(readers...))
 
-	tripleEncryptedWriter := client.Bucket(sampleBucket).Object(tripleEncryptedFile).NewWriter(ctx)
+	tripleEncryptedWriter := s.gcsClient.Bucket(s.sampleBucket).Object(s.advertiserTripleEncryptedFile()).NewWriter(ctx)
 	defer func() {
 		err := tripleEncryptedWriter.Close()
-		require.NoError(t, err, "must close GCS writer")
+		s.Require().NoError(err, "must close GCS writer")
 	}()
 	tripleEncryptedCsvWriter := csv.NewWriter(tripleEncryptedWriter)
 	defer tripleEncryptedCsvWriter.Flush()
 
 	data, err := twiceEncryptedCsvReader.ReadAll()
-	require.NoError(t, err, "must read twice encrypted data")
+	s.Require().NoError(err, "must read twice encrypted data")
 	for _, line := range data {
-		require.Len(t, line, 1, "must have one record")
+		s.Require().Len(line, 1, "must have one record")
 		record := line[0]
 
-		tripleEnc, err := pairKey.ReEncrypt([]byte(record))
-		require.NoError(t, err, "must re-encrypt record")
+		tripleEnc, err := s.publisherPairKey.ReEncrypt([]byte(record))
+		s.Require().NoError(err, "must re-encrypt record")
 		err = tripleEncryptedCsvWriter.Write([]string{string(tripleEnc)})
-		require.NoError(t, err, "must write email")
+		s.Require().NoError(err, "must write email")
 	}
+}
+
+func (s *cmdTestSuite) requireLocalContentEqualToGCSContent(localFolder, gcsFolder string) {
+	s.T().Helper()
+	ctx := context.Background()
+
+	var localFileReadClosers []io.ReadCloser
+	err := filepath.Walk(localFolder, func(path string, info os.FileInfo, err error) error {
+		s.Require().NoError(err, "must walk through the local path")
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		s.Require().NoError(err, "must open output file")
+		localFileReadClosers = append(localFileReadClosers, file)
+		return nil
+	})
+	s.Require().NoError(err, "must walk through the local path")
+	s.Require().NotEmpty(localFileReadClosers, "must have output files")
+
+	localFileReaders := make([]io.Reader, len(localFileReadClosers))
+	for i, r := range localFileReadClosers {
+		defer func(r io.ReadCloser) {
+			err := r.Close()
+			s.Require().NoError(err, "must close local file reader")
+		}(r)
+		localFileReaders[i] = r
+	}
+
+	localFileCsvReader := csv.NewReader(io.MultiReader(localFileReaders...))
+	localRecords, err := localFileCsvReader.ReadAll()
+	s.Require().NoError(err, "must read output records")
+
+	localValuesMap := make(map[string]struct{})
+	for _, record := range localRecords {
+		s.Require().Len(record, 1, "must have one record")
+		localValuesMap[record[0]] = struct{}{}
+	}
+
+	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, s.gcsClient, &obucket.PrefixedBucket{
+		Bucket: s.sampleBucket,
+		Prefix: gcsFolder,
+	})
+	s.Require().NoError(err, "must create readers")
+	s.Require().NotEmpty(readClosers, "must have twice encrypted data")
+
+	readers := make([]io.Reader, len(readClosers))
+	for i, r := range readClosers {
+		defer func(r io.ReadCloser) {
+			err := r.Close()
+			s.Require().NoError(err, "must close GCS reader")
+		}(r)
+		readers[i] = r
+	}
+	gcsFolderCsvReader := csv.NewReader(io.MultiReader(readers...))
+	gcsRecords, err := gcsFolderCsvReader.ReadAll()
+	s.Require().NoError(err, "must read GCS records")
+
+	gcsMap := make(map[string]struct{})
+	for _, record := range gcsRecords {
+		s.Require().Len(record, 1, "must have one record")
+		gcsMap[record[0]] = struct{}{}
+	}
+
+	// check if all records in the output file are in the GCS folder
+	for _, records := range localRecords {
+		_, ok := gcsMap[records[0]]
+		s.Require().True(ok, "record must be in GCS folder")
+		delete(gcsMap, records[0])
+	}
+	s.Require().Empty(gcsMap, "all records in the local file must be in the GCS folder")
+
+	// check if all records in the GCS folder are in the local file
+	for _, records := range gcsRecords {
+		_, ok := localValuesMap[records[0]]
+		s.Require().True(ok, "record must be in the local file")
+		delete(localValuesMap, records[0])
+	}
+	s.Require().Empty(localValuesMap, "all records in the GCS folder must be in the local file")
+}
+
+func (s *cmdTestSuite) advertiserTwiceEncryptedFolder() string {
+	return fmt.Sprintf("%s/advertiser_twice_encrypted", s.cleanroomName)
+}
+
+func (s *cmdTestSuite) publisherTwiceEncryptedFolder() string {
+	return fmt.Sprintf("%s/publisher_twice_encrypted", s.cleanroomName)
+}
+
+func (s *cmdTestSuite) advertiserTripleEncryptedFolder() string {
+	return fmt.Sprintf("%s/advertiser_triple_encrypted", s.cleanroomName)
+}
+
+func (s *cmdTestSuite) publisherTripleEncryptedFolder() string {
+	return fmt.Sprintf("%s/publisher_triple_encrypted", s.cleanroomName)
+}
+
+func (s *cmdTestSuite) advertiserTwiceEncryptedGCSFolder() string {
+	return fmt.Sprintf("gs://%s/%s", s.sampleBucket, s.advertiserTwiceEncryptedFolder())
+}
+
+func (s *cmdTestSuite) publisherTwiceEncryptedGCSFolder() string {
+	return fmt.Sprintf("gs://%s/%s", s.sampleBucket, s.publisherTwiceEncryptedFolder())
+}
+
+func (s *cmdTestSuite) advertiserTripleEncryptedGCSFolder() string {
+	return fmt.Sprintf("gs://%s/%s", s.sampleBucket, s.advertiserTripleEncryptedFolder())
+}
+
+func (s *cmdTestSuite) publisherTripleEncryptedGCSFolder() string {
+	return fmt.Sprintf("gs://%s/%s", s.sampleBucket, s.publisherTripleEncryptedFolder())
+}
+
+func (s *cmdTestSuite) publisherTwiceEncryptedDataFile() string {
+	return s.publisherTwiceEncryptedFolder() + "/data.csv"
+}
+
+func (s *cmdTestSuite) advertiserTripleEncryptedFile() string {
+	return s.advertiserTripleEncryptedFolder() + "/data.csv"
 }
