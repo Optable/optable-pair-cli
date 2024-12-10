@@ -422,18 +422,7 @@ func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
 		s.Require().NoError(err, "must close GCS writer")
 	}()
 
-	// trim this --->
-	pubWriter, err := os.Create(path.Join(s.tmpDir, "publisher_twice_encrypted.csv"))
-	s.Require().NoError(err, "must create temp file")
-	defer func() {
-		err := pubWriter.Close()
-		s.Require().NoError(err, "must close temp file")
-	}()
-
-	multiWriter := io.MultiWriter(twiceEncryptedWriter, pubWriter)
-	// trim this <---
-
-	twiceEncryptedCsvWriter := csv.NewWriter(multiWriter)
+	twiceEncryptedCsvWriter := csv.NewWriter(twiceEncryptedWriter)
 	defer twiceEncryptedCsvWriter.Flush()
 
 	for _, email := range s.emailsSource {
