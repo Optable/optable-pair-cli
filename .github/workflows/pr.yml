@@ -47,8 +47,6 @@ jobs:
         run: go get ./...
       - name: Build
         run: make build
-      - name: Run go tests
-        run: go test ./...
       - name: Start fake-gcs-server
         run: |
           docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server \
@@ -64,10 +62,10 @@ jobs:
             echo "Waiting for fake-gcs-server..."
             sleep 2
           done
-      - name: Run integration tests
+      - name: Run go tests
         env:
           STORAGE_EMULATOR_HOST: http://0.0.0.0:4443
-        run: go test ./pkg/cmd/cli/... -run="TestCmd"
+        run: go test ./...
       - name: Cleanup
         if: always()
         run: docker stop fake-gcs-server && docker rm fake-gcs-server
