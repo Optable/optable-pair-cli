@@ -49,3 +49,25 @@ jobs:
         run: make build
       - name: Run go tests
         run: go test ./...
+      - name: Start fake-gcs-server
+        run: |
+          docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server \
+            -scheme http \
+            -public-host 0.0.0.0:4443
+      - name: Wait for fake-gcs-server to start
+        run: |
+          for i in {1..10}; do
+            if curl -s http://0.0.0.0:4443/storage/v1/; then
+              echo "fake-gcs-server is ready"
+              break
+            fi
+            echo "Waiting for fake-gcs-server..."
+            sleep 2
+          done
+      - name: Run integration tests
+        env:
+          STORAGE_EMULATOR_HOST: http://0.0.0.0:4443
+        run: go test ./pkg/cmd/cli/... -run="TestCmd"
+      - name: Cleanup
+        if: always()
+        run: docker stop fake-gcs-server && docker rm fake-gcs-server
