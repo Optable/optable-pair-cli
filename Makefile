@@ -3,6 +3,14 @@ BUILD_VERSION := $(shell git describe --tags --always)
 GO=$(shell which go)
 RM=rm -f ./bin/*
 
+# fake-gcs-server variables
+FAKE_GCS_DOCKER_IMAGE = fsouza/fake-gcs-server
+FAKE_GCS_DOCKER_CONTAINER = fake-gcs-server
+FAKE_GCS_SHEME = http
+FAKE_GCS_PORT = 4443
+FAKE_GCS_HOST = 0.0.0.0
+STORAGE_EMULATOR_HOST = $(FAKE_GCS_SHEME)://$(FAKE_GCS_HOST):$(FAKE_GCS_PORT)
+
 # windows specific commands
 ifeq ($(OS), Windows_NT)
 	MV=move bin\opair bin\opair.exe
@@ -53,7 +61,7 @@ windows:
 	mkdir -p release && cp bin/opair release/opair-windows-amd64.exe
 
 .PHONY: clean
-clean: clean-bin clean-release
+clean: clean-bin clean-release clean-fake-gcs-server
 
 .PHONY: clean-bin
 clean-bin:
@@ -62,3 +70,32 @@ clean-bin:
 .PHONY: clean-release
 clean-release:
 	rm -f release/*
+
+.PHONY: start-fake-gcs-server
+start-fake-gcs-server:
+	@if [ $$(docker ps -q -f name=$(FAKE_GCS_DOCKER_CONTAINER)) ]; then \
+		echo "Container $(FAKE_GCS_DOCKER_CONTAINER) is already running."; \
+	elif [ $$(docker ps -aq -f name=$(FAKE_GCS_DOCKER_CONTAINER)) ]; then \
+		echo "Starting existing container $(FAKE_GCS_DOCKER_CONTAINER)..."; \
+		docker start $(FAKE_GCS_DOCKER_CONTAINER); \
+	else \
+		echo "Creating and starting container $(FAKE_GCS_DOCKER_CONTAINER)..."; \
+		docker run -d --name $(FAKE_GCS_DOCKER_CONTAINER) -p $(FAKE_GCS_PORT):$(FAKE_GCS_PORT) $(FAKE_GCS_DOCKER_IMAGE) \
+			-scheme $(FAKE_GCS_SHEME) \
+			-public-host $(FAKE_GCS_HOST):$(FAKE_GCS_PORT); \
+	fi
+
+.PHONY: clean-fake-gcs-server
+clean-fake-gcs-server:
+	@if [ $$(docker ps -q -f name=$(FAKE_GCS_DOCKER_CONTAINER)) ]; then \
+		echo "Stopping container $(FAKE_GCS_DOCKER_CONTAINER)..."; \
+		docker stop $(FAKE_GCS_DOCKER_CONTAINER); \
+	fi
+	@if [ $$(docker ps -aq -f name=$(FAKE_GCS_DOCKER_CONTAINER)) ]; then \
+		echo "Removing container $(FAKE_GCS_DOCKER_CONTAINER)..."; \
+		docker rm $(FAKE_GCS_DOCKER_CONTAINER); \
+	fi
+
+.PHONY: test
+test: start-fake-gcs-server
+	STORAGE_EMULATOR_HOST=$(STORAGE_EMULATOR_HOST) $(GO) test ./...
