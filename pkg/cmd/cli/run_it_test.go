@@ -48,11 +48,15 @@ type cmdTestSuite struct {
 	gcsClient    *storage.Client
 	sampleBucket string
 
-	// test parameters for each test
+	// unique params for each test case
+	tmpDir string
+	params cmdTestParams
+}
+
+type cmdTestParams struct {
 	cleanroomName               string
 	expireTime                  time.Time
 	emailsSource                []string
-	tmpDir                      string
 	salt                        string
 	publisherPairKey            *pair.PrivateKey
 	advertiserInputFilePath     string
@@ -72,9 +76,10 @@ func TestCmd(t *testing.T) {
 	// STORAGE_EMULATOR_HOST is required to run this test
 	bucketURL := os.Getenv("STORAGE_EMULATOR_HOST")
 	if bucketURL == "" {
-		t.Skip("STORAGE_EMULATOR_HOST is required to run this test")
+		t.Errorf("STORAGE_EMULATOR_HOST is required to run this test")
+	} else {
+		suite.Run(t, new(cmdTestSuite))
 	}
-	suite.Run(t, new(cmdTestSuite))
 }
 
 func (s *cmdTestSuite) SetupSuite() {
@@ -137,40 +142,40 @@ func (s *cmdTestSuite) TearDownAllSuite() {
 
 func (s *cmdTestSuite) SetupTest() {
 	// generate emails
-	s.emailsSource = make([]string, genEmailsSourceNumber)
+	s.params.emailsSource = make([]string, genEmailsSourceNumber)
 	shaEncoder := sha256.New()
 	for i := range genEmailsSourceNumber {
 		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
 		hem := shaEncoder.Sum(nil)
-		s.emailsSource[i] = fmt.Sprintf("%x", hem)
+		s.params.emailsSource[i] = fmt.Sprintf("%x", hem)
 	}
 
 	id := uuid.New().String()
-	s.cleanroomName = "cleanrooms/" + id
-	s.expireTime = time.Now().Add(1 * time.Hour)
+	s.params.cleanroomName = "cleanrooms/" + id
+	s.params.expireTime = time.Now().Add(1 * time.Hour)
 
 	s.tmpDir = path.Join(os.TempDir(), id)
 	err := os.MkdirAll(s.tmpDir, os.ModePerm)
 	s.Require().NoError(err, "must create temp dir")
 
-	s.publisherPAIRIDsFolderPath = path.Join(s.tmpDir, "publisher_pair_id")
-	s.advertiserOutputFolderPath = path.Join(s.tmpDir, "output")
+	s.params.publisherPAIRIDsFolderPath = path.Join(s.tmpDir, "publisher_pair_id")
+	s.params.advertiserOutputFolderPath = path.Join(s.tmpDir, "output")
 
 	// create advertiser key config file in tmp folder
-	s.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig()
+	s.params.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig()
 	// create advertiser input file in tmp folder
-	s.advertiserInputFilePath = s.requireCreateAdvertiserInputFile()
+	s.params.advertiserInputFilePath = s.requireCreateAdvertiserInputFile()
 
 	// generate salt
 	salt := make([]byte, sha256SaltSize)
 	_, err = rand.Read(salt)
 	s.Require().NoError(err)
-	s.salt = base64.StdEncoding.EncodeToString(salt)
+	s.params.salt = base64.StdEncoding.EncodeToString(salt)
 
 	// generate publisher PAIR key
 	publisherKey, err := keys.NewPrivateKey(pair.PAIRSHA256Ristretto255)
 	s.Require().NoError(err)
-	s.publisherPairKey, err = keys.NewPAIRPrivateKey(s.salt, publisherKey)
+	s.params.publisherPairKey, err = keys.NewPAIRPrivateKey(s.params.salt, publisherKey)
 	s.Require().NoError(err)
 
 	// create publisher twice encrypted data in gcs emulator
@@ -217,15 +222,15 @@ func (s *cmdTestSuite) TestRun_FailToAdvance() {
 	}))
 	defer server.Close()
 
-	token, err := generateToken(server.URL, s.cleanroomName, s.salt)
+	token, err := generateToken(server.URL, s.params.cleanroomName, s.params.salt)
 	s.Require().NoError(err)
 
 	runCommand := RunCmd{
 		PairCleanroomToken: token,
-		Input:              s.advertiserInputFilePath,
+		Input:              s.params.advertiserInputFilePath,
 		NumThreads:         1,
-		Output:             s.advertiserOutputFolderPath,
-		PublisherPAIRIDs:   s.publisherPAIRIDsFolderPath,
+		Output:             s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.params.publisherPAIRIDsFolderPath,
 	}
 
 	cli := Cli{
@@ -236,7 +241,7 @@ func (s *cmdTestSuite) TestRun_FailToAdvance() {
 	}
 
 	cfg := &Config{
-		configPath: s.advertiserKeyConfigFilePath,
+		configPath: s.params.advertiserKeyConfigFilePath,
 	}
 
 	cmdCtx, err := cli.NewContext(cfg)
@@ -279,7 +284,7 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 
 			if cleanroom.Participants[0].State == v1.Cleanroom_Participant_DATA_TRANSFORMED {
 				// add publisher triple encrypted data on this step
-				s.requireGenPublisherTripleEncryptedData()
+				s.requireGenAdvertiserTripleEncryptedData()
 			}
 
 			nextPuplisherState = v1.Cleanroom_Participant_SUCCEEDED
@@ -293,15 +298,15 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 	}))
 	defer server.Close()
 
-	token, err := generateToken(server.URL, s.cleanroomName, s.salt)
+	token, err := generateToken(server.URL, s.params.cleanroomName, s.params.salt)
 	s.Require().NoError(err)
 
 	runCommand := RunCmd{
 		PairCleanroomToken: token,
-		Input:              s.advertiserInputFilePath,
+		Input:              s.params.advertiserInputFilePath,
 		NumThreads:         workersNum,
-		Output:             s.advertiserOutputFolderPath,
-		PublisherPAIRIDs:   s.publisherPAIRIDsFolderPath,
+		Output:             s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.params.publisherPAIRIDsFolderPath,
 	}
 
 	cli := Cli{
@@ -312,7 +317,7 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 	}
 
 	cfg := &Config{
-		configPath: s.advertiserKeyConfigFilePath,
+		configPath: s.params.advertiserKeyConfigFilePath,
 	}
 
 	cmdCtx, err := cli.NewContext(cfg)
@@ -322,8 +327,8 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 	s.Require().NoError(err)
 
 	// check the result
-	s.requireLocalContentEqualToGCSContent(s.advertiserOutputFolderPath, s.publisherTwiceEncryptedFolder())
-	s.requireLocalContentEqualToGCSContent(s.publisherPAIRIDsFolderPath, s.publisherTripleEncryptedFolder())
+	s.requireLocalContentEqualToGCSContent(s.params.advertiserOutputFolderPath, s.publisherTwiceEncryptedFolder())
+	s.requireLocalContentEqualToGCSContent(s.params.publisherPAIRIDsFolderPath, s.publisherTripleEncryptedFolder())
 }
 
 // creates new cleanroom with the given name and expire time. The cleanroom has two participants:
@@ -333,14 +338,14 @@ func (s *cmdTestSuite) newCleanroom() v1.Cleanroom {
 	s.T().Helper()
 
 	return v1.Cleanroom{
-		Name:       s.cleanroomName,
-		ExpireTime: timestamppb.New(s.expireTime),
+		Name:       s.params.cleanroomName,
+		ExpireTime: timestamppb.New(s.params.expireTime),
 		Config: &v1.Cleanroom_Config{
 			Config: &v1.Cleanroom_Config_Pair{
 				Pair: &v1.Cleanroom_Config_PairConfig{
 					GcsToken: &v1.Cleanroom_Config_PairConfig_AuthToken{
 						Value:      "gcsToken",
-						ExpireTime: timestamppb.New(s.expireTime),
+						ExpireTime: timestamppb.New(s.params.expireTime),
 					},
 					AdvertiserTwiceEncryptedDataUrl:  s.advertiserTwiceEncryptedGCSFolder(),
 					PublisherTwiceEncryptedDataUrl:   s.publisherTwiceEncryptedGCSFolder(),
@@ -403,7 +408,7 @@ func (s *cmdTestSuite) requireCreateAdvertiserInputFile() string {
 	w := csv.NewWriter(tmpInputFile)
 	defer w.Flush()
 
-	for _, email := range s.emailsSource {
+	for _, email := range s.params.emailsSource {
 		err = w.Write([]string{email})
 		s.Require().NoError(err, "must write email")
 	}
@@ -425,15 +430,15 @@ func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
 	twiceEncryptedCsvWriter := csv.NewWriter(twiceEncryptedWriter)
 	defer twiceEncryptedCsvWriter.Flush()
 
-	for _, email := range s.emailsSource {
-		twiceEnc, err := s.publisherPairKey.Encrypt([]byte(email))
+	for _, email := range s.params.emailsSource {
+		twiceEnc, err := s.params.publisherPairKey.Encrypt([]byte(email))
 		s.Require().NoError(err, "must encrypt email")
 		err = twiceEncryptedCsvWriter.Write([]string{string(twiceEnc)})
 		s.Require().NoError(err, "must write email")
 	}
 }
 
-func (s *cmdTestSuite) requireGenPublisherTripleEncryptedData() {
+func (s *cmdTestSuite) requireGenAdvertiserTripleEncryptedData() {
 	s.T().Helper()
 	ctx := context.Background()
 
@@ -470,7 +475,7 @@ func (s *cmdTestSuite) requireGenPublisherTripleEncryptedData() {
 		s.Require().Len(line, 1, "must have one record")
 		record := line[0]
 
-		tripleEnc, err := s.publisherPairKey.ReEncrypt([]byte(record))
+		tripleEnc, err := s.params.publisherPairKey.ReEncrypt([]byte(record))
 		s.Require().NoError(err, "must re-encrypt record")
 		err = tripleEncryptedCsvWriter.Write([]string{string(tripleEnc)})
 		s.Require().NoError(err, "must write email")
@@ -557,19 +562,19 @@ func (s *cmdTestSuite) requireLocalContentEqualToGCSContent(localFolder, gcsFold
 }
 
 func (s *cmdTestSuite) advertiserTwiceEncryptedFolder() string {
-	return fmt.Sprintf("%s/advertiser_twice_encrypted", s.cleanroomName)
+	return fmt.Sprintf("%s/advertiser_twice_encrypted", s.params.cleanroomName)
 }
 
 func (s *cmdTestSuite) publisherTwiceEncryptedFolder() string {
-	return fmt.Sprintf("%s/publisher_twice_encrypted", s.cleanroomName)
+	return fmt.Sprintf("%s/publisher_twice_encrypted", s.params.cleanroomName)
 }
 
 func (s *cmdTestSuite) advertiserTripleEncryptedFolder() string {
-	return fmt.Sprintf("%s/advertiser_triple_encrypted", s.cleanroomName)
+	return fmt.Sprintf("%s/advertiser_triple_encrypted", s.params.cleanroomName)
 }
 
 func (s *cmdTestSuite) publisherTripleEncryptedFolder() string {
-	return fmt.Sprintf("%s/publisher_triple_encrypted", s.cleanroomName)
+	return fmt.Sprintf("%s/publisher_triple_encrypted", s.params.cleanroomName)
 }
 
 func (s *cmdTestSuite) advertiserTwiceEncryptedGCSFolder() string {

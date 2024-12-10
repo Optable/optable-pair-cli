@@ -96,5 +96,5 @@ The `-scheme http` and `-public-host 0.0.0.0:4443` flags are required to run the
 Use the following command to run the integration tests:
 
 bash```
-STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./pkg/cmd/cli/... -run="TestCmd"
+STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./...
 ```
