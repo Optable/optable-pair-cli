@@ -99,3 +99,8 @@ clean-fake-gcs-server:
 .PHONY: test
 test: start-fake-gcs-server
 	STORAGE_EMULATOR_HOST=$(STORAGE_EMULATOR_HOST) $(GO) test ./...
+
++.PHONY: coverage
++coverage: start-fake-gcs-server
++       STORAGE_EMULATOR_HOST=$(STORAGE_EMULATOR_HOST) $(GO) test -coverprofile coverage.out ./...
++       $(GO) tool cover -html=coverage.out
