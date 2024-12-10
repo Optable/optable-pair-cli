@@ -6,10 +6,10 @@ RM=rm -f ./bin/*
 # fake-gcs-server variables
 FAKE_GCS_DOCKER_IMAGE = fsouza/fake-gcs-server
 FAKE_GCS_DOCKER_CONTAINER = fake-gcs-server
-FAKE_GCS_SHEME = http
+FAKE_GCS_SCHEME = http
 FAKE_GCS_PORT = 4443
 FAKE_GCS_HOST = 0.0.0.0
-STORAGE_EMULATOR_HOST = $(FAKE_GCS_SHEME)://$(FAKE_GCS_HOST):$(FAKE_GCS_PORT)
+STORAGE_EMULATOR_HOST = $(FAKE_GCS_SCHEME)://$(FAKE_GCS_HOST):$(FAKE_GCS_PORT)
 
 # windows specific commands
 ifeq ($(OS), Windows_NT)
@@ -81,7 +81,7 @@ start-fake-gcs-server:
 	else \
 		echo "Creating and starting container $(FAKE_GCS_DOCKER_CONTAINER)..."; \
 		docker run -d --name $(FAKE_GCS_DOCKER_CONTAINER) -p $(FAKE_GCS_PORT):$(FAKE_GCS_PORT) $(FAKE_GCS_DOCKER_IMAGE) \
-			-scheme $(FAKE_GCS_SHEME) \
+			-scheme $(FAKE_GCS_SCHEME) \
 			-public-host $(FAKE_GCS_HOST):$(FAKE_GCS_PORT); \
 	fi
 
