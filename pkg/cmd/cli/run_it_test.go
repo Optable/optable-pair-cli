@@ -439,9 +439,8 @@ func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
 
 func (s *cmdTestSuite) requireGenAdvertiserTripleEncryptedData() {
 	s.T().Helper()
-	ctx := context.Background()
 
-	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, s.gcsClient,
+	readClosers, err := obucket.ReadersFromPrefixedBucket(s.ctx, s.gcsClient,
 		&obucket.PrefixedBucket{
 			Bucket: s.sampleBucket,
 			Prefix: s.advertiserTwiceEncryptedFolder(),
@@ -460,7 +459,7 @@ func (s *cmdTestSuite) requireGenAdvertiserTripleEncryptedData() {
 	}
 	twiceEncryptedCsvReader := csv.NewReader(io.MultiReader(readers...))
 
-	tripleEncryptedWriter := s.gcsClient.Bucket(s.sampleBucket).Object(s.advertiserTripleEncryptedFile()).NewWriter(ctx)
+	tripleEncryptedWriter := s.gcsClient.Bucket(s.sampleBucket).Object(s.advertiserTripleEncryptedFile()).NewWriter(s.ctx)
 	defer func() {
 		err := tripleEncryptedWriter.Close()
 		s.Require().NoError(err, "must close GCS writer")
@@ -483,7 +482,6 @@ func (s *cmdTestSuite) requireGenAdvertiserTripleEncryptedData() {
 
 func (s *cmdTestSuite) requireLocalContentEqualToGCSContent(localFolder, gcsFolder string) {
 	s.T().Helper()
-	ctx := context.Background()
 
 	var localFileReadClosers []io.ReadCloser
 	err := filepath.Walk(localFolder, func(path string, info os.FileInfo, err error) error {
@@ -518,7 +516,7 @@ func (s *cmdTestSuite) requireLocalContentEqualToGCSContent(localFolder, gcsFold
 		localValuesMap[record[0]] = struct{}{}
 	}
 
-	readClosers, err := obucket.ReadersFromPrefixedBucket(ctx, s.gcsClient, &obucket.PrefixedBucket{
+	readClosers, err := obucket.ReadersFromPrefixedBucket(s.ctx, s.gcsClient, &obucket.PrefixedBucket{
 		Bucket: s.sampleBucket,
 		Prefix: gcsFolder,
 	})
