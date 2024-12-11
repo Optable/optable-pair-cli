@@ -406,7 +406,11 @@ func (s *cmdTestSuite) requireCreateAdvertiserInputFile() string {
 	}()
 
 	w := csv.NewWriter(tmpInputFile)
-	defer w.Flush()
+	defer func() {
+		err := w.Error()
+		s.Require().NoError(err, "must flush writer")
+		w.Flush()
+	}()
 
 	for _, email := range s.params.emailsSource {
 		err = w.Write([]string{email})
@@ -427,7 +431,11 @@ func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
 	}()
 
 	twiceEncryptedCsvWriter := csv.NewWriter(twiceEncryptedWriter)
-	defer twiceEncryptedCsvWriter.Flush()
+	defer func() {
+		err := twiceEncryptedCsvWriter.Error()
+		s.Require().NoError(err, "must flush writer")
+		twiceEncryptedCsvWriter.Flush()
+	}()
 
 	for _, email := range s.params.emailsSource {
 		twiceEnc, err := s.params.publisherPairKey.Encrypt([]byte(email))
@@ -465,7 +473,11 @@ func (s *cmdTestSuite) requireGenAdvertiserTripleEncryptedData() {
 		s.Require().NoError(err, "must close GCS writer")
 	}()
 	tripleEncryptedCsvWriter := csv.NewWriter(tripleEncryptedWriter)
-	defer tripleEncryptedCsvWriter.Flush()
+	defer func() {
+		err := tripleEncryptedCsvWriter.Error()
+		s.Require().NoError(err, "must flush writer")
+		tripleEncryptedCsvWriter.Flush()
+	}()
 
 	data, err := twiceEncryptedCsvReader.ReadAll()
 	s.Require().NoError(err, "must read twice encrypted data")
