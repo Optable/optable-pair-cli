@@ -46,11 +46,11 @@ func TestCleanroomRun(t *testing.T) {
 			if err != nil {
 				t.Errorf("Failed to marshal response: %v", err)
 			}
+			w.WriteHeader(http.StatusOK)
 			_, err = w.Write(data)
 			if err != nil {
 				t.Errorf("Failed to write response body: %v", err)
 			}
-			w.WriteHeader(http.StatusOK)
 
 		default:
 			t.Errorf("Unexpected call %s", r.URL.Path)

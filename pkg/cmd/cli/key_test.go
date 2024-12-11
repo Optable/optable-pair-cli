@@ -4,21 +4,26 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path"
 	"testing"
 
 	"optable-pair-cli/pkg/keys"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 func TestKeyCreate(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := os.TempDir()
-	keyConfigFile := tmpDir + "/test_config.json"
+	tmpDir := path.Join(os.TempDir(), uuid.New().String())
+	err := os.MkdirAll(tmpDir, os.ModePerm)
+	require.NoError(t, err, "must create temp dir")
+
+	keyConfigFile := path.Join(tmpDir, "test_config.json")
 	defer func() {
-		err := os.RemoveAll(keyConfigFile)
-		require.NoError(t, err, "must remove temp file")
+		err := os.RemoveAll(tmpDir)
+		require.NoError(t, err, "must remove temp dir")
 	}()
 
 	createKeyCmd := CreateCmd{Force: false}
