@@ -417,11 +417,10 @@ func (s *cmdTestSuite) requireCreateAdvertiserInputFile() string {
 
 func (s *cmdTestSuite) requireGenPublisherTwiceEncryptedData() {
 	s.T().Helper()
-	ctx := context.Background()
 
 	twiceEncryptedWriter := s.gcsClient.Bucket(s.sampleBucket).Object(
 		s.publisherTwiceEncryptedDataFile(),
-	).NewWriter(ctx)
+	).NewWriter(s.ctx)
 	defer func() {
 		err := twiceEncryptedWriter.Close()
 		s.Require().NoError(err, "must close GCS writer")
