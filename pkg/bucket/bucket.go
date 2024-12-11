@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -57,7 +56,18 @@ type (
 	Option func(*bucketOptions)
 )
 
-var HTTPClient = &http.Client{}
+// GCSClientOptions is used to set insucure HTTP client for integration tests.
+var GCSClientOptions = []option.ClientOption{}
+
+func gcsClientOptions(token string) []option.ClientOption {
+	return append(GCSClientOptions, option.WithTokenSource(
+		oauth2.StaticTokenSource(
+			&oauth2.Token{
+				AccessToken: token,
+			},
+		),
+	))
+}
 
 // WithReader allows to specify a reader to be used for the bucket.
 func WithReader(reader io.Reader) Option {
@@ -80,17 +90,7 @@ func NewBucketCompleter(ctx context.Context, downscopedToken string, dstURL stri
 		return nil, ErrTokenRequired
 	}
 
-	client, err := storage.NewClient(
-		ctx,
-		option.WithTokenSource(
-			oauth2.StaticTokenSource(
-				&oauth2.Token{
-					AccessToken: downscopedToken,
-				},
-			),
-		),
-		option.WithHTTPClient(HTTPClient),
-	)
+	client, err := storage.NewClient(ctx, gcsClientOptions(downscopedToken)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}
@@ -144,17 +144,7 @@ func NewBucketReadWriter(ctx context.Context, downscopedToken string, dstURL str
 		opt(bucketOption)
 	}
 
-	client, err := storage.NewClient(
-		ctx,
-		option.WithTokenSource(
-			oauth2.StaticTokenSource(
-				&oauth2.Token{
-					AccessToken: downscopedToken,
-				},
-			),
-		),
-		option.WithHTTPClient(HTTPClient),
-	)
+	client, err := storage.NewClient(ctx, gcsClientOptions(downscopedToken)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage client: %w", err)
 	}

@@ -95,7 +95,7 @@ func (s *cmdTestSuite) SetupSuite() {
 	}
 
 	// update HTTP client for bucket completer
-	obucket.HTTPClient = insecureGCSHTTPClient
+	obucket.GCSClientOptions = append(obucket.GCSClientOptions, option.WithHTTPClient(insecureGCSHTTPClient))
 
 	// init GCS emulator client and bucket
 	bucketURL := os.Getenv("STORAGE_EMULATOR_HOST")
