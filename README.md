@@ -90,11 +90,3 @@ The `-scheme http` and `-public-host 0.0.0.0:4443` flags are required to run the
 - `-public-host 0.0.0.0:4443` ensures that readers are created correctly. For more details, refer to [this issue]
  (https://github.com/fsouza/fake-gcs-server/issues/201).
 - `-scheme http` is required for proper local hosting without TLS checks. The GCS client has issues connecting to HTTPS servers, as it verifies the TLS certificate and fails in this setup.
-
-## Run Integration Tests
-
-Use the following command to run the integration tests:
-
-```bash
-STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./...
-```
