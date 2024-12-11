@@ -95,6 +95,6 @@ docker run -d --name fake-gcs-server -p 4443:4443 fsouza/fake-gcs-server -scheme
 
 Use the following command to run the integration tests:
 
-bash```
+```bash
 STORAGE_EMULATOR_HOST=http://0.0.0.0:4443 go test ./...
 ```
