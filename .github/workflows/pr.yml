@@ -65,7 +65,11 @@ jobs:
       - name: Run go tests
         env:
           STORAGE_EMULATOR_HOST: http://0.0.0.0:4443
-        run: go test ./...
+        run: go test ./... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          config: ./.testcoverage.yml
       - name: Cleanup
         if: always()
         run: docker stop fake-gcs-server && docker rm fake-gcs-server
