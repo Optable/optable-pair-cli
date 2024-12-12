@@ -69,7 +69,9 @@ jobs:
       - name: check test coverage
         uses: vladopajic/go-test-coverage@v2
         with:
-          config: ./.testcoverage.yml
+           with:
+            profile: cover.out
+            threshold-total: 60
       - name: Cleanup
         if: always()
         run: docker stop fake-gcs-server && docker rm fake-gcs-server
