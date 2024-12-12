@@ -70,6 +70,7 @@ jobs:
         uses: vladopajic/go-test-coverage@v2
         with:
           profile: cover.out
+          local-prefix: "github.com/Optable/optable-pair-cli"
           threshold-total: 60
       - name: Cleanup
         if: always()
