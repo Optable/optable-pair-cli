@@ -59,6 +59,7 @@ type cmdTestParams struct {
 	emailsSource                []string
 	salt                        string
 	publisherPairKey            *pair.PrivateKey
+	advertiserKeyConfig         *keys.KeyConfig
 	advertiserInputFilePath     string
 	advertiserKeyConfigFilePath string
 	publisherPAIRIDsFolderPath  string
@@ -121,6 +122,15 @@ func (s *cmdTestSuite) SetupSuite() {
 	})
 	s.Require().NoError(err, "must create bucket")
 	s.gcsClient = client
+
+	// generate emails source once for all tests
+	s.params.emailsSource = make([]string, genEmailsSourceNumber)
+	shaEncoder := sha256.New()
+	for i := range genEmailsSourceNumber {
+		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
+		hem := shaEncoder.Sum(nil)
+		s.params.emailsSource[i] = fmt.Sprintf("%x", hem)
+	}
 }
 
 func (s *cmdTestSuite) TearDownAllSuite() {
@@ -141,15 +151,6 @@ func (s *cmdTestSuite) TearDownAllSuite() {
 }
 
 func (s *cmdTestSuite) SetupTest() {
-	// generate emails
-	s.params.emailsSource = make([]string, genEmailsSourceNumber)
-	shaEncoder := sha256.New()
-	for i := range genEmailsSourceNumber {
-		shaEncoder.Write([]byte(fmt.Sprintf("%d@gmail.com", i)))
-		hem := shaEncoder.Sum(nil)
-		s.params.emailsSource[i] = fmt.Sprintf("%x", hem)
-	}
-
 	id := uuid.New().String()
 	s.params.cleanroomName = "cleanrooms/" + id
 	s.params.expireTime = time.Now().Add(1 * time.Hour)
@@ -162,7 +163,10 @@ func (s *cmdTestSuite) SetupTest() {
 	s.params.advertiserOutputFolderPath = path.Join(s.tmpDir, "output")
 
 	// create advertiser key config file in tmp folder
-	s.params.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig()
+	keyConfig, err := keys.GenerateKeyConfig()
+	s.Require().NoError(err, "must generate key config")
+	s.params.advertiserKeyConfig = keyConfig
+	s.params.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig(keyConfig)
 	// create advertiser input file in tmp folder
 	s.params.advertiserInputFilePath = s.requireCreateAdvertiserInputFile()
 
@@ -190,28 +194,273 @@ func (s *cmdTestSuite) TearDownTest() {
 }
 
 func (s *cmdTestSuite) TestRun() {
-	s.testRun(1)
+	s.testRun(1, s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED))
 }
 
 func (s *cmdTestSuite) TestRun_MultipleWorkers() {
-	s.testRun(4)
+	s.testRun(4, s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED))
+}
+
+func (s *cmdTestSuite) TestRunDefaultWorkers() {
+	s.testRun(-1, s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED))
+}
+
+func (s *cmdTestSuite) TestRun_StepTwo_ContributedContributed() {
+	// arrange
+	s.requirePrepareForStepTwo()
+
+	// run from step two
+	s.testRun(1, s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_DATA_CONTRIBUTED))
+}
+
+func (s *cmdTestSuite) TestRun_StepTwo_TransformedContributed() {
+	// arrange
+	s.requirePrepareForStepTwo()
+
+	// run from step two
+	s.testRun(1, s.newCleanroom(v1.Cleanroom_Participant_DATA_TRANSFORMED, v1.Cleanroom_Participant_DATA_CONTRIBUTED))
+}
+
+func (s *cmdTestSuite) requirePrepareForStepTwo() {
+	cfg := &pairConfig{
+		downscopedToken: "token",
+		threads:         1,
+		salt:            s.params.salt,
+		key:             s.params.advertiserKeyConfig.Key,
+		advTwicePath:    s.advertiserTwiceEncryptedGCSFolder(),
+		advTriplePath:   s.advertiserTripleEncryptedGCSFolder(),
+		pubTwicePath:    s.publisherTwiceEncryptedGCSFolder(),
+		pubTriplePath:   s.publisherTripleEncryptedGCSFolder(),
+	}
+	err := cfg.hashEncryt(s.ctx, s.params.advertiserInputFilePath)
+	s.Require().NoError(err)
+
+	s.requireGenAdvertiserTripleEncryptedData()
+}
+
+func (s *cmdTestSuite) TestRun_StepThree_ContributedTransformed() {
+	// arrange
+	s.requirePrepareForStepThree()
+
+	cleanroom := s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_DATA_TRANSFORMED)
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		// change publisher's state to data_transformed
+		cleanroom.Participants[0].State = v1.Cleanroom_Participant_DATA_TRANSFORMED
+	}()
+
+	// run from step three: check if we wait on advertiser side for publisher to advance
+	s.testRun(1, cleanroom)
+}
+
+func (s *cmdTestSuite) TestRun_StepThree_TransformedTransformed() {
+	// arrange
+	s.requirePrepareForStepThree()
+
+	// run from step three: run match only
+	s.testRun(1, s.newCleanroom(v1.Cleanroom_Participant_DATA_TRANSFORMED, v1.Cleanroom_Participant_DATA_TRANSFORMED))
+}
+
+func (s *cmdTestSuite) TestRun_StepThree_SucceededTransformed() {
+	// arrange
+	s.requirePrepareForStepThree()
+
+	// run from step three: run match only
+	s.testRun(1, s.newCleanroom(v1.Cleanroom_Participant_SUCCEEDED, v1.Cleanroom_Participant_DATA_TRANSFORMED))
+}
+
+func (s *cmdTestSuite) requirePrepareForStepThree() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
+			s.requireWriteCleanroomHandler(w, s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_DATA_TRANSFORMED))
+
+		default:
+			s.T().Errorf("Unexpected call %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := internal.NewCleanroomClient(&internal.CleanroomToken{
+		HashSalt:   s.params.salt,
+		Cleanroom:  s.params.cleanroomName,
+		Expiration: 10000,
+		IssuerHost: server.URL,
+	})
+	s.Require().NoError(err)
+
+	cfg := &pairConfig{
+		downscopedToken: "token",
+		threads:         1,
+		salt:            s.params.salt,
+		key:             s.params.advertiserKeyConfig.Key,
+		advTwicePath:    s.advertiserTwiceEncryptedGCSFolder(),
+		advTriplePath:   s.advertiserTripleEncryptedGCSFolder(),
+		pubTwicePath:    s.publisherTwiceEncryptedGCSFolder(),
+		pubTriplePath:   s.publisherTripleEncryptedGCSFolder(),
+		cleanroomClient: client,
+	}
+	err = cfg.hashEncryt(s.ctx, s.params.advertiserInputFilePath)
+	s.Require().NoError(err)
+
+	err = cfg.reEncrypt(s.ctx, s.params.publisherPAIRIDsFolderPath)
+	s.Require().NoError(err)
+
+	s.requireGenAdvertiserTripleEncryptedData()
+}
+
+func (s *cmdTestSuite) TestRun_BadToken() {
+	runCommand := RunCmd{
+		Input:            s.params.advertiserInputFilePath,
+		NumThreads:       1,
+		Output:           s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs: s.params.publisherPAIRIDsFolderPath,
+	}
+
+	cli := Cli{
+		CleanroomCmd: CleanroomCmd{
+			Run: runCommand,
+		},
+		Context: keyContext,
+	}
+
+	cfg := &Config{
+		configPath: s.params.advertiserKeyConfigFilePath,
+	}
+
+	cmdCtx, err := cli.NewContext(cfg)
+	s.Require().NoError(err)
+
+	// empty token
+	runCommand.PairCleanroomToken = ""
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "token is required")
+
+	// invalid token
+	runCommand.PairCleanroomToken = "invalid_token"
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "failed to parse clean room token")
+}
+
+func (s *cmdTestSuite) TestRun_InvalidKey() {
+	runCommand := RunCmd{
+		PairCleanroomToken: s.requireGenerateToken("http://example.com", s.params.cleanroomName, s.params.salt),
+		Input:              s.params.advertiserInputFilePath,
+		NumThreads:         1,
+		Output:             s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.params.publisherPAIRIDsFolderPath,
+	}
+
+	cli := Cli{
+		CleanroomCmd: CleanroomCmd{
+			Run: runCommand,
+		},
+		Context: keyContext,
+	}
+
+	cfg := &Config{
+		configPath: s.params.advertiserKeyConfigFilePath,
+	}
+
+	cmdCtx, err := cli.NewContext(cfg)
+	s.Require().NoError(err)
+
+	// no key
+	err = os.Remove(s.params.advertiserKeyConfigFilePath)
+	s.Require().NoError(err, "must remove key config file")
+
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "ReadKeyConfig")
+
+	// invalid key
+	s.params.advertiserKeyConfigFilePath = s.requireCreateNewKeyConfig(&keys.KeyConfig{
+		ID:  uuid.NewString(),
+		Key: "invalid_key",
+	})
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "malformed key configuration")
+}
+
+func (s *cmdTestSuite) TestRun_FailGetCleanroom() {
+	// get cleanroom is called in few places. iteration is used to simulate different responses.
+	// first 2 calls will return cleanroom, the third one will return a 505 error.
+	iteration := 0
+
+	cleanroom := s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED)
+
+	// init optable mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case internal.AdminCleanroomGetURL:
+			if iteration < 2 {
+				s.requireWriteCleanroomHandler(w, cleanroom)
+				iteration++
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+
+		default:
+			s.T().Errorf("Unexpected call %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	runCommand := RunCmd{
+		PairCleanroomToken: s.requireGenerateToken(server.URL, s.params.cleanroomName, s.params.salt),
+		Input:              s.params.advertiserInputFilePath,
+		NumThreads:         1,
+		Output:             s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.params.publisherPAIRIDsFolderPath,
+	}
+
+	cli := Cli{
+		CleanroomCmd: CleanroomCmd{
+			Run: runCommand,
+		},
+		Context: keyContext,
+	}
+
+	cfg := &Config{
+		configPath: s.params.advertiserKeyConfigFilePath,
+	}
+
+	cmdCtx, err := cli.NewContext(cfg)
+	s.Require().NoError(err)
+
+	// fail to get cleanroom in RunCmd (third call)
+	iteration = 0
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "GetCleanroom", "get cleanroom must fail")
+	s.Require().Contains(err.Error(), "500", "must contain status code")
+
+	// fail to get cleanroom for pair config (second call)
+	iteration = 1
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "unexpected status code", "get cleanroom must fail")
+	s.Require().Contains(err.Error(), "500", "must contain status code")
+
+	// fail to get downscoped token (first call)
+	iteration = 2
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "failed to get down scoped token", "get cleanroom must fail")
+	s.Require().Contains(err.Error(), "500", "must contain status code")
 }
 
 func (s *cmdTestSuite) TestRun_FailToAdvance() {
+	cleanroom := s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED)
+
 	// init optable mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
-			cleanroom := s.newCleanroom()
-			data, err := proto.Marshal(&cleanroom)
-			if err != nil {
-				s.T().Errorf("Failed to marshal response: %v", err)
-			}
-			_, err = w.Write(data)
-			if err != nil {
-				s.T().Errorf("Failed to write response body: %v", err)
-			}
-			w.WriteHeader(http.StatusOK)
+			s.requireWriteCleanroomHandler(w, cleanroom)
 
 		case internal.AdminCleanroomAdvanceURL:
 			w.WriteHeader(http.StatusInternalServerError)
@@ -222,11 +471,8 @@ func (s *cmdTestSuite) TestRun_FailToAdvance() {
 	}))
 	defer server.Close()
 
-	token, err := generateToken(server.URL, s.params.cleanroomName, s.params.salt)
-	s.Require().NoError(err)
-
 	runCommand := RunCmd{
-		PairCleanroomToken: token,
+		PairCleanroomToken: s.requireGenerateToken(server.URL, s.params.cleanroomName, s.params.salt),
 		Input:              s.params.advertiserInputFilePath,
 		NumThreads:         1,
 		Output:             s.params.advertiserOutputFolderPath,
@@ -252,45 +498,17 @@ func (s *cmdTestSuite) TestRun_FailToAdvance() {
 	s.Require().Contains(err.Error(), "500")
 }
 
-func (s *cmdTestSuite) testRun(workersNum int) {
-	var (
-		cleanroom = s.newCleanroom()
-		// next states for the participants to be changed on each advance call
-		nextPuplisherState  = v1.Cleanroom_Participant_DATA_TRANSFORMED
-		nextAdvertiserState = v1.Cleanroom_Participant_DATA_CONTRIBUTED
-	)
+func (s *cmdTestSuite) TestRun_UnspecifiedParticipants() {
+	cleanroom := s.newCleanroom(v1.Cleanroom_Participant_DATA_CONTRIBUTED, v1.Cleanroom_Participant_INVITED)
+	// change participant states to unspecified
+	cleanroom.Participants[0].Role = v1.Cleanroom_Participant_ROLE_UNSPECIFIED
+	cleanroom.Participants[1].Role = v1.Cleanroom_Participant_ROLE_UNSPECIFIED
 
 	// init optable mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeCleanroom := func(w http.ResponseWriter) {
-			data, err := proto.Marshal(&cleanroom)
-			if err != nil {
-				s.T().Errorf("Failed to marshal response: %v", err)
-			}
-			_, err = w.Write(data)
-			if err != nil {
-				s.T().Errorf("Failed to write response body: %v", err)
-			}
-			w.WriteHeader(http.StatusOK)
-		}
 		switch r.URL.Path {
-		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
-			writeCleanroom(w)
-
-		case internal.AdminCleanroomAdvanceURL:
-			// advance the state of the participants
-			cleanroom.Participants[0].State = nextPuplisherState
-			cleanroom.Participants[1].State = nextAdvertiserState
-
-			if cleanroom.Participants[0].State == v1.Cleanroom_Participant_DATA_TRANSFORMED {
-				// add publisher triple encrypted data on this step
-				s.requireGenAdvertiserTripleEncryptedData()
-			}
-
-			nextPuplisherState = v1.Cleanroom_Participant_SUCCEEDED
-			nextAdvertiserState = v1.Cleanroom_Participant_DATA_TRANSFORMED
-
-			writeCleanroom(w)
+		case internal.AdminCleanroomGetURL:
+			s.requireWriteCleanroomHandler(w, cleanroom)
 
 		default:
 			s.T().Errorf("Unexpected call %s", r.URL.Path)
@@ -298,11 +516,81 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 	}))
 	defer server.Close()
 
-	token, err := generateToken(server.URL, s.params.cleanroomName, s.params.salt)
+	runCommand := RunCmd{
+		PairCleanroomToken: s.requireGenerateToken(server.URL, s.params.cleanroomName, s.params.salt),
+		Input:              s.params.advertiserInputFilePath,
+		NumThreads:         1,
+		Output:             s.params.advertiserOutputFolderPath,
+		PublisherPAIRIDs:   s.params.publisherPAIRIDsFolderPath,
+	}
+
+	cli := Cli{
+		CleanroomCmd: CleanroomCmd{
+			Run: runCommand,
+		},
+		Context: keyContext,
+	}
+
+	cfg := &Config{
+		configPath: s.params.advertiserKeyConfigFilePath,
+	}
+
+	cmdCtx, err := cli.NewContext(cfg)
 	s.Require().NoError(err)
 
+	err = runCommand.Run(cmdCtx)
+	s.Require().Error(err)
+	s.Require().Contains(err.Error(), "role unspecified for participant")
+}
+
+func (s *cmdTestSuite) requireWriteCleanroomHandler(w http.ResponseWriter, cleanroom *v1.Cleanroom) {
+	w.WriteHeader(http.StatusOK)
+	data, err := proto.Marshal(cleanroom)
+	s.Require().NoError(err, "must marshal response")
+	_, err = w.Write(data)
+	s.Require().NoError(err, "failed to write response body")
+}
+
+func (s *cmdTestSuite) testRun(workersNum int, cleanroom *v1.Cleanroom) {
+	// next states for the participants to advance the cleanroom
+	nextState, stateExists := map[v1.Cleanroom_Participant_State]v1.Cleanroom_Participant_State{
+		v1.Cleanroom_Participant_INVITED:          v1.Cleanroom_Participant_DATA_CONTRIBUTED,
+		v1.Cleanroom_Participant_DATA_CONTRIBUTED: v1.Cleanroom_Participant_DATA_TRANSFORMED,
+		v1.Cleanroom_Participant_DATA_TRANSFORMED: v1.Cleanroom_Participant_SUCCEEDED,
+		v1.Cleanroom_Participant_SUCCEEDED:        v1.Cleanroom_Participant_SUCCEEDED, // do not change the state
+	}, false
+
+	// init optable mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case internal.AdminCleanroomRefreshTokenURL, internal.AdminCleanroomGetURL:
+			s.requireWriteCleanroomHandler(w, cleanroom)
+
+		case internal.AdminCleanroomAdvanceURL:
+			// advance the state of the participants
+			cleanroom.Participants[0].State, stateExists = nextState[cleanroom.Participants[0].State]
+			if !stateExists {
+				s.T().Errorf("Unexpected state")
+			}
+			cleanroom.Participants[1].State, stateExists = nextState[cleanroom.Participants[1].State]
+			if !stateExists {
+				s.T().Errorf("Unexpected state")
+			}
+
+			if cleanroom.Participants[0].State == v1.Cleanroom_Participant_DATA_TRANSFORMED {
+				s.requireGenAdvertiserTripleEncryptedData() // publisher writes to advertiser triple encrypted folder
+			}
+
+			s.requireWriteCleanroomHandler(w, cleanroom)
+
+		default:
+			s.T().Errorf("Unexpected call %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
 	runCommand := RunCmd{
-		PairCleanroomToken: token,
+		PairCleanroomToken: s.requireGenerateToken(server.URL, s.params.cleanroomName, s.params.salt),
 		Input:              s.params.advertiserInputFilePath,
 		NumThreads:         workersNum,
 		Output:             s.params.advertiserOutputFolderPath,
@@ -331,13 +619,11 @@ func (s *cmdTestSuite) testRun(workersNum int) {
 	s.requireLocalContentEqualToGCSContent(s.params.publisherPAIRIDsFolderPath, s.publisherTripleEncryptedFolder())
 }
 
-// creates new cleanroom with the given name and expire time. The cleanroom has two participants:
-// - publisher with DATA_CONTRIBUTED state;
-// - advertiser with INVITED state.
-func (s *cmdTestSuite) newCleanroom() v1.Cleanroom {
+// creates new cleanroom with the given name and expire time
+func (s *cmdTestSuite) newCleanroom(publisherState, advertiserState v1.Cleanroom_Participant_State) *v1.Cleanroom {
 	s.T().Helper()
 
-	return v1.Cleanroom{
+	return &v1.Cleanroom{
 		Name:       s.params.cleanroomName,
 		ExpireTime: timestamppb.New(s.params.expireTime),
 		Config: &v1.Cleanroom_Config{
@@ -357,17 +643,17 @@ func (s *cmdTestSuite) newCleanroom() v1.Cleanroom {
 		Participants: []*v1.Cleanroom_Participant{
 			{
 				Role:  v1.Cleanroom_Participant_PUBLISHER,
-				State: v1.Cleanroom_Participant_DATA_CONTRIBUTED,
+				State: publisherState,
 			},
 			{
 				Role:  v1.Cleanroom_Participant_ADVERTISER,
-				State: v1.Cleanroom_Participant_INVITED,
+				State: advertiserState,
 			},
 		},
 	}
 }
 
-func (s *cmdTestSuite) requireCreateNewKeyConfig() string {
+func (s *cmdTestSuite) requireCreateNewKeyConfig(keyConfig *keys.KeyConfig) string {
 	s.T().Helper()
 
 	tmpConfigFile, err := os.Create(path.Join(s.tmpDir, "test_config.json"))
@@ -377,9 +663,6 @@ func (s *cmdTestSuite) requireCreateNewKeyConfig() string {
 		err = tmpConfigFile.Close()
 		s.Require().NoError(err, "must close temp file")
 	}()
-
-	keyConfig, err := keys.GenerateKeyConfig()
-	s.Require().NoError(err, "must generate key config")
 
 	configs := map[string]keys.KeyConfig{
 		keyContext: *keyConfig,
@@ -568,6 +851,12 @@ func (s *cmdTestSuite) requireLocalContentEqualToGCSContent(localFolder, gcsFold
 		delete(localValuesMap, records[0])
 	}
 	s.Require().Empty(localValuesMap, "all records in the GCS folder must be in the local file")
+}
+
+func (s *cmdTestSuite) requireGenerateToken(url, cleanroomName, salt string) string {
+	token, err := generateToken(url, cleanroomName, salt)
+	s.Require().NoError(err)
+	return token
 }
 
 func (s *cmdTestSuite) advertiserTwiceEncryptedFolder() string {
