@@ -34,7 +34,7 @@ jobs:
         run: pre-commit install
       - name: Run all pre-commit hooks
         run: SKIP=golangci-lint pre-commit run --all-files
-  build:
+  test:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
@@ -65,7 +65,13 @@ jobs:
       - name: Run go tests
         env:
           STORAGE_EMULATOR_HOST: http://0.0.0.0:4443
-        run: go test ./...
+        run: go test ./... -coverprofile=./cover.out -covermode=atomic
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: ./cover.out
+          local-prefix: "github.com/Optable/optable-pair-cli"
+          threshold-total: 70
       - name: Cleanup
         if: always()
         run: docker stop fake-gcs-server && docker rm fake-gcs-server
