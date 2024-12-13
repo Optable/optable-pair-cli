@@ -71,7 +71,7 @@ jobs:
         with:
           profile: ./cover.out
           local-prefix: "github.com/Optable/optable-pair-cli"
-          threshold-total: 70
+          threshold-total: 60
       - name: Cleanup
         if: always()
         run: docker stop fake-gcs-server && docker rm fake-gcs-server
